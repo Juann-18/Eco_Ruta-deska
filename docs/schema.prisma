@@ -1,0 +1,304 @@
+// Prisma Schema para EcoRuta
+// Compatible con PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  CIUDADANO
+  RECOLECTOR
+  ADMIN
+}
+
+enum WasteType {
+  PAPEL_CARTON
+  VIDRIO
+  PLASTICO
+  METAL
+  ESCOMBRO
+  ORGANICO
+}
+
+enum RouteStatus {
+  PROGRAMADA
+  EN_CAMINO
+  FINALIZADA
+  CANCELADA
+}
+
+enum CollectionStatus {
+  PENDIENTE
+  EN_PROCESO
+  COMPLETADA
+  OMITIDA
+}
+
+enum CitizenReportReason {
+  CONTENEDOR_LLENO
+  DANADO
+  MAL_OLOR
+  RESIDUOS_FUERA
+  CAMION_NO_PASO
+  OTRO
+}
+
+enum CitizenReportStatus {
+  PENDIENTE
+  EN_REVISION
+  RESUELTO
+  DESCARTADO
+}
+
+enum CompanyStatus {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @db.VarChar(255)
+  name         String    @db.VarChar(150)
+  phone        String?   @db.VarChar(30)
+  role         UserRole  @default(CIUDADANO)
+  comuna       Int?      @db.SmallInt
+  avatarUrl    String?   @db.Text
+  companyId    String?   @db.Uuid
+  createdAt    DateTime  @default(now()) @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @db.Timestamptz
+
+  // Relaciones
+  company           Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  citizenReports    CitizenReport[]
+  routeAssignments  RouteAssignment[]
+  notifications     Notification[]
+  reportedIncidents RouteIncident[]
+
+  @@index([email])
+  @@index([role])
+  @@index([comuna])
+  @@map("users")
+}
+
+model Company {
+  id              String        @id @default(uuid()) @db.Uuid
+  name            String        @db.VarChar(150)
+  nit             String        @unique @db.VarChar(30)
+  phone           String        @db.VarChar(30)
+  address         String?       @db.VarChar(255)
+  description     String?       @db.Text
+  rating          Decimal       @default(5.00) @db.Decimal(3, 2)
+  completedRoutes Int           @default(0)
+  isVerified      Boolean       @default(false)
+  status          CompanyStatus @default(PENDIENTE)
+  wasteTypes      String[]
+  coveredComunas  Int[]
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
+
+  // Relaciones
+  employees     User[]
+  vehicles      Vehicle[]
+  routes        Route[]
+  recyclePoints RecyclePoint[]
+
+  @@index([nit])
+  @@index([status])
+  @@map("companies")
+}
+
+model Vehicle {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @db.Uuid
+  plate         String   @unique @db.VarChar(15)
+  model         String?  @db.VarChar(100)
+  maxCapacityKg Decimal  @default(5000.00) @db.Decimal(8, 2)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
+
+  // Relaciones
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  routes  Route[]
+
+  @@index([plate])
+  @@index([companyId])
+  @@map("vehicles")
+}
+
+model RecyclePoint {
+  id                    String    @id @default(uuid()) @db.Uuid
+  companyId             String?   @db.Uuid
+  code                  String    @unique @db.VarChar(20)
+  name                  String    @db.VarChar(150)
+  address               String    @db.VarChar(255)
+  comuna                Int       @db.SmallInt
+  latitude              Decimal   @db.Decimal(10, 8)
+  longitude             Decimal   @db.Decimal(11, 8)
+  wasteType             WasteType
+  capacityKg            Decimal   @default(100.00) @db.Decimal(7, 2)
+  currentFillPercentage Decimal   @default(0.00) @db.Decimal(5, 2)
+  isActive              Boolean   @default(true)
+  lastEmptiedAt         DateTime? @db.Timestamptz
+  createdAt             DateTime  @default(now()) @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @db.Timestamptz
+
+  // Relaciones
+  company        Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  collections    Collection[]
+  citizenReports CitizenReport[]
+
+  @@index([code])
+  @@index([comuna])
+  @@index([wasteType])
+  @@index([isActive])
+  @@map("recycle_points")
+}
+
+model Route {
+  id            String      @id @default(uuid()) @db.Uuid
+  companyId     String      @db.Uuid
+  vehicleId     String?     @db.Uuid
+  code          String      @unique @db.VarChar(20)
+  name          String      @db.VarChar(150)
+  comuna        Int         @db.SmallInt
+  scheduledDate DateTime    @db.Date
+  startTime     String      @db.VarChar(10)
+  endTime       String      @db.VarChar(10)
+  currentLoadKg Decimal     @default(0.00) @db.Decimal(8, 2)
+  maxCapacityKg Decimal     @default(5000.00) @db.Decimal(8, 2)
+  status        RouteStatus @default(PROGRAMADA)
+  startedAt     DateTime?   @db.Timestamptz
+  completedAt   DateTime?   @db.Timestamptz
+  createdAt     DateTime    @default(now()) @db.Timestamptz
+  updatedAt     DateTime    @updatedAt @db.Timestamptz
+
+  // Relaciones
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  vehicle          Vehicle?          @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  routeAssignments RouteAssignment[]
+  collections      Collection[]
+
+  @@index([code])
+  @@index([comuna])
+  @@index([scheduledDate])
+  @@index([status])
+  @@map("routes")
+}
+
+model RouteAssignment {
+  id         String   @id @default(uuid()) @db.Uuid
+  routeId    String   @db.Uuid
+  userId     String   @db.Uuid
+  assignedAt DateTime @default(now()) @db.Timestamptz
+
+  // Relaciones
+  route Route @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, userId])
+  @@index([userId])
+  @@index([routeId])
+  @@map("route_assignments")
+}
+
+model Collection {
+  id                String           @id @default(uuid()) @db.Uuid
+  routeId           String           @db.Uuid
+  recyclePointId    String           @db.Uuid
+  order             Int
+  status            CollectionStatus @default(PENDIENTE)
+  collectedWeightKg Decimal?         @db.Decimal(7, 2)
+  collectedAt       DateTime?        @db.Timestamptz
+  notes             String?          @db.Text
+  createdAt         DateTime         @default(now()) @db.Timestamptz
+  updatedAt         DateTime         @updatedAt @db.Timestamptz
+
+  // Relaciones
+  route        Route           @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  recyclePoint RecyclePoint    @relation(fields: [recyclePointId], references: [id], onDelete: Restrict)
+  incidents    RouteIncident[]
+
+  @@unique([routeId, recyclePointId])
+  @@index([routeId])
+  @@index([status])
+  @@map("collections")
+}
+
+model CitizenReport {
+  id             String              @id @default(uuid()) @db.Uuid
+  userId         String              @db.Uuid
+  recyclePointId String?             @db.Uuid
+  folio          String              @unique @db.VarChar(20)
+  reason         CitizenReportReason
+  description    String              @db.Text
+  imageUrl       String?             @db.Text
+  latitude       Decimal?            @db.Decimal(10, 8)
+  longitude      Decimal?            @db.Decimal(11, 8)
+  address        String?             @db.VarChar(255)
+  status         CitizenReportStatus @default(PENDIENTE)
+  resolvedAt     DateTime?           @db.Timestamptz
+  createdAt      DateTime            @default(now()) @db.Timestamptz
+  updatedAt      DateTime            @updatedAt @db.Timestamptz
+
+  // Relaciones
+  user         User          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  recyclePoint RecyclePoint? @relation(fields: [recyclePointId], references: [id], onDelete: SetNull)
+
+  @@index([folio])
+  @@index([userId])
+  @@index([status])
+  @@map("citizen_reports")
+}
+
+model RouteIncident {
+  id               String   @id @default(uuid()) @db.Uuid
+  collectionId     String   @db.Uuid
+  reportedByUserId String   @db.Uuid
+  reason           String   @db.VarChar(150)
+  description      String?  @db.Text
+  photoUrl         String?  @db.Text
+  createdAt        DateTime @default(now()) @db.Timestamptz
+
+  // Relaciones
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  reporter   User       @relation(fields: [reportedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([reportedByUserId])
+  @@map("route_incidents")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  comuna    Int?     @db.SmallInt
+  title     String   @db.VarChar(150)
+  message   String   @db.Text
+  type      String   @db.VarChar(50)
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  // Relaciones
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([comuna])
+  @@index([isRead])
+  @@map("notifications")
+}

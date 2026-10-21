@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eco_Ruta | Gemelo Digital & Simulador de Telemetría IoT</title>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- Google Fonts: DM Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --foreground: #0a0a0a;
+      --primary: #000000;
+      --primary-foreground: #ffffff;
+      --primary-brand: #8db37e;
+      --primary-brand-light: #b8ebba;
+      --background: #ffffff;
+      --muted: #f4f4f4;
+      --muted-foreground: #737373;
+      --border: #e5e5e5;
+      --destructive: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background-color: #fafafa;
+      color: var(--foreground);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1000;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: var(--primary-brand);
+      color: #063717;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .title-group h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .title-group p {
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+
+    .header-metrics {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .metric-pill {
+      background: var(--muted);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+
+    .metric-pill span.num {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--primary);
+    }
+
+    .metric-pill.critical span.num {
+      color: var(--destructive);
+    }
+
+    /* Controls Bar */
+    .toolbar {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      z-index: 999;
+    }
+
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button.btn {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: var(--foreground);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    button.btn:hover {
+      background: var(--muted);
+    }
+
+    button.btn.btn-dark {
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-color: var(--primary);
+    }
+
+    button.btn.btn-dark:hover {
+      opacity: 0.9;
+    }
+
+    button.btn.btn-danger {
+      color: var(--destructive);
+      border-color: #ffd0d0;
+    }
+
+    button.btn.btn-danger:hover {
+      background: #fef2f2;
+    }
+
+    button.btn.active {
+      background: var(--primary-brand);
+      color: #063717;
+      border-color: var(--primary-brand);
+    }
+
+    .speed-selector {
+      display: flex;
+      background: var(--muted);
+      border-radius: 20px;
+      padding: 2px;
+    }
+
+    .speed-btn {
+      border: none;
+      background: transparent;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 16px;
+      cursor: pointer;
+      color: var(--muted-foreground);
+    }
+
+    .speed-btn.active {
+      background: #ffffff;
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    /* Main Layout */
+    .main-content {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 122px);
+      overflow: hidden;
+    }
+
+    #map {
+      flex: 1;
+      height: 100%;
+      background: #e5e5e5;
+    }
+
+    /* Sidebar info & logs */
+    .sidebar {
+      width: 380px;
+      background: #ffffff;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .sidebar-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted-foreground);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    /* Card list */
+    .truck-card {
+      background: var(--muted);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .truck-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .truck-plate {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 14px;
+      background: #000;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    .truck-status-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+    }
+
+    .status-en-camino { background: #dbeafe; color: #1e40af; }
+    .status-recolectando { background: #fef3c7; color: #92400e; }
+    .status-descargando { background: #e0e7ff; color: #3730a3; }
+    .status-idle { background: #e5e7eb; color: #4b5563; }
+
+    .progress-bar-bg {
+      background: #e5e5e5;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary-brand);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-bar-fill.danger {
+      background: var(--destructive);
+    }
+
+    /* Logs feed */
+    .log-feed {
+      background: #111111;
+      color: #e5e5e5;
+      border-radius: 12px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      flex: 1;
+      overflow-y: auto;
+      max-height: 250px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .log-item {
+      line-height: 1.4;
+      display: flex;
+      gap: 8px;
+    }
+
+    .log-item .time { color: #888; }
+    .log-item.DISPATCH { color: #60a5fa; }
+    .log-item.SUCCESS { color: #4ade80; }
+    .log-item.ALERT, .log-item.CRITICAL { color: #f87171; }
+    .log-item.CONTROL { color: #fbbf24; }
+
+    /* Custom Leaflet Markers */
+    .bin-marker {
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      border: 2px solid white;
+      transition: transform 0.2s ease;
+    }
+
+    .bin-marker.safe { background-color: var(--success); }
+    .bin-marker.medium { background-color: var(--warning); }
+    .bin-marker.critical {
+      background-color: var(--destructive);
+      animation: pulse-red 1.5s infinite;
+    }
+
+    @keyframes pulse-red {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { transform: scale(1.15); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    .truck-marker-icon {
+      background: #000000;
+      color: white;
+      border-radius: 8px;
+      padding: 4px 6px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #ffffff;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="logo-badge">ECO_RUTA</div>
+      <div class="title-group">
+        <h1>Gemelo Digital & Simulador de Telemetría</h1>
+        <p>Entorno Virtual de Pruebas IoT para Tuluá, Colombia (Comunas 1–6)</p>
+      </div>
+    </div>
+
+    <div class="header-metrics">
+      <div class="metric-pill">
+        <span>🕒 Hora Simulada:</span>
+        <span class="num" id="metric-clock">08:00</span>
+      </div>
+      <div class="metric-pill">
+        <span>🗑️ Contenedores:</span>
+        <span class="num" id="metric-containers">0</span>
+      </div>
+      <div class="metric-pill critical">
+        <span>🚨 Críticos (>80%):</span>
+        <span class="num" id="metric-critical">0</span>
+      </div>
+      <div class="metric-pill">
+        <span>🚛 Camiones Activos:</span>
+        <span class="num" id="metric-trucks">0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls Toolbar -->
+  <div class="toolbar">
+    <div class="btn-group">
+      <button class="btn btn-dark" id="btn-pause" onclick="togglePause()">
+        <span id="btn-pause-icon">⏸️</span> <span id="btn-pause-text">Pausar</span>
+      </button>
+
+      <div class="speed-selector">
+        <button class="speed-btn active" onclick="setSpeed(1)">1x</button>
+        <button class="speed-btn" onclick="setSpeed(2)">2x</button>
+        <button class="speed-btn" onclick="setSpeed(5)">5x</button>
+        <button class="speed-btn" onclick="setSpeed(10)">10x</button>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-danger" onclick="forceFill()">
+        ⚡ Llenar Contenedores al 95% (Prueba de Estrés)
+      </button>
+      <button class="btn" onclick="emptyAll()">
+        🧹 Vaciar Todos
+      </button>
+      <button class="btn" id="btn-sync-backend" onclick="toggleBackendSync()">
+        📡 Sincronizar Backend REST: <span id="sync-status" style="font-weight:700; color:#888;">OFF</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div id="map"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <span>Monitor de Flota y Eventos</span>
+        <span style="font-size: 11px; color: var(--muted-foreground);" id="status-tag">En vivo</span>
+      </div>
+
+      <div class="tab-content">
+        <!-- Flota de Camiones -->
+        <div>
+          <div class="section-title">Camiones Recolectores</div>
+          <div id="trucks-list" style="display:flex; flex-direction:column; gap:10px;">
+            <!-- Renderizado dinámico -->
+          </div>
+        </div>
+
+        <!-- Terminal de Eventos -->
+        <div style="flex:1; display:flex; flex-direction:column;">
+          <div class="section-title">Registro de Telemetría (Live Feed)</div>
+          <div class="log-feed" id="event-feed">
+            <div class="log-item"><span class="time">--:--:--</span> Inicializando simulador...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Inicialización del Mapa Leaflet centrado en Tuluá, Valle del Cauca
+    const map = L.map('map').setView([4.0847, -76.1954], 14);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let containerMarkers = {};
+    let truckMarkers = {};
+    let facilityMarkers = [];
+
+    // Helper para crear ícono de contenedor según %
+    function getContainerMarkerIcon(fillPercentage) {
+      let colorClass = 'safe';
+      if (fillPercentage >= 80) colorClass = 'critical';
+      else if (fillPercentage >= 50) colorClass = 'medium';
+
+      return L.divIcon({
+        className: '',
+        html: `<div class="bin-marker ${colorClass}" style="width:26px; height:26px;">${Math.round(fillPercentage)}%</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+    }
+
+    // Helper para ícono de camión
+    function getTruckMarkerIcon() {
+      return L.divIcon({
+        className: '',
+        html: `<div class="truck-marker-icon">🚛</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+      });
+    }
+
+    // Puntos fijos: Planta y Cochera
+    function renderFacilities(depot, disposal) {
+      if (facilityMarkers.length > 0) return;
+
+      const depotIcon = L.divIcon({
+        className: '',
+        html: `<div style="background:#2563eb; color:white; border-radius:8px; padding:4px 6px; font-size:12px; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">🏠 Cochera</div>`,
+        iconSize: [80, 24],
+        iconAnchor: [40, 12]
+      });
+      facilityMarkers.push(L.marker([depot.lat, depot.lng], { icon: depotIcon }).addTo(map).bindPopup(`<b>${depot.name}</b>`));
+
+      const disposalIcon = L.divIcon({
+        className: '',
+        html: `<div style="background:#059669; color:white; border-radius:8px; padding:4px 6px; font-size:12px; border:2px solid white; box-shadow:0 2px 4px rgba(0,0,0,0.3);">♻️ Planta Acopio</div>`,
+        iconSize: [100, 24],
+        iconAnchor: [50, 12]
+      });
+      facilityMarkers.push(L.marker([disposal.lat, disposal.lng], { icon: disposalIcon }).addTo(map).bindPopup(`<b>${disposal.name}</b>`));
+    }
+
+    // Polling del estado del simulador
+    async function fetchState() {
+      try {
+        const res = await fetch('/api/state');
+        if (!res.ok) return;
+        const data = await res.json();
+        updateUI(data);
+      } catch (err) {
+        console.warn("Conexión con simulador en espera...");
+      }
+    }
+
+    function updateUI(state) {
+      document.getElementById('metric-clock').innerText = state.simulated_time;
+      document.getElementById('metric-containers').innerText = state.containers.length;
+      
+      const criticalCount = state.containers.filter(c => c.is_critical).length;
+      document.getElementById('metric-critical').innerText = criticalCount;
+      document.getElementById('metric-trucks').innerText = state.trucks.length;
+
+      // Botón pausa
+      document.getElementById('btn-pause-text').innerText = state.is_paused ? "Reanudar" : "Pausar";
+      document.getElementById('btn-pause-icon').innerText = state.is_paused ? "▶️" : "⏸️";
+
+      // Sincronización backend
+      const syncEl = document.getElementById('sync-status');
+      if (state.forward_to_backend) {
+        syncEl.innerText = "ON (Activo)";
+        syncEl.style.color = "#10b981";
+      } else {
+        syncEl.innerText = "OFF";
+        syncEl.style.color = "#888888";
+      }
+
+      // Renderizar instalaciones fijas
+      renderFacilities(state.depot, state.disposal);
+
+      // Actualizar Contenedores en Mapa
+      state.containers.forEach(c => {
+        const icon = getContainerMarkerIcon(c.fill_percentage);
+        if (containerMarkers[c.id]) {
+          containerMarkers[c.id].setIcon(icon);
+          containerMarkers[c.id].setLatLng([c.latitude, c.longitude]);
+        } else {
+          const marker = L.marker([c.latitude, c.longitude], { icon: icon }).addTo(map);
+          marker.bindPopup(`
+            <div style="font-family:'DM Sans', sans-serif; min-width:180px;">
+              <h3 style="font-size:14px; margin-bottom:4px;">${c.code} - ${c.name}</h3>
+              <p style="font-size:12px; color:#555;">${c.address} (Comuna ${c.comuna})</p>
+              <hr style="margin:6px 0; border:0; border-top:1px solid #eee;">
+              <p style="font-size:12px;"><b>Tipo:</b> ${c.waste_type}</p>
+              <p style="font-size:12px;"><b>Llenado:</b> ${c.fill_percentage}% (${c.current_weight_kg} / ${c.capacity_kg} kg)</p>
+              <p style="font-size:12px;"><b>Batería:</b> ${c.battery_percentage}% | <b>Temp:</b> ${c.temperature_celsius}°C</p>
+            </div>
+          `);
+          containerMarkers[c.id] = marker;
+        }
+      });
+
+      // Actualizar Camiones en Mapa
+      state.trucks.forEach(t => {
+        const icon = getTruckMarkerIcon();
+        if (truckMarkers[t.id]) {
+          truckMarkers[t.id].setLatLng([t.latitude, t.longitude]);
+        } else {
+          const marker = L.marker([t.latitude, t.longitude], { icon: icon }).addTo(map);
+          marker.bindPopup(`
+            <div style="font-family:'DM Sans', sans-serif;">
+              <b>Camión ${t.plate}</b><br>
+              ${t.model}<br>
+              Carga: ${t.current_load_kg} kg / ${t.max_capacity_kg} kg
+            </div>
+          `);
+          truckMarkers[t.id] = marker;
+        }
+      });
+
+      // Renderizar Sidebar de Camiones
+      const trucksListEl = document.getElementById('trucks-list');
+      trucksListEl.innerHTML = state.trucks.map(t => {
+        const statusClass = `status-${t.status.toLowerCase().replace('_', '-')}`;
+        const isNearFull = t.load_percentage >= 85;
+        return `
+          <div class="truck-card">
+            <div class="truck-header">
+              <span class="truck-plate">${t.plate}</span>
+              <span class="truck-status-badge ${statusClass}">${t.status}</span>
+            </div>
+            <div style="font-size:12px; color:var(--muted-foreground);">
+              ${t.target_name ? `Destino: <b>${t.target_name}</b>` : 'En espera de despacho'}
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;">
+                <span>Carga: ${t.current_load_kg} / ${t.max_capacity_kg} kg</span>
+                <span><b>${t.load_percentage}%</b></span>
+              </div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill ${isNearFull ? 'danger' : ''}" style="width:${Math.min(100, t.load_percentage)}%;"></div>
+              </div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; color:#666;">
+              <span>⛽ Combustible: ${t.fuel_percentage}%</span>
+              <span>⚡ Vel: ${t.speed_kmh} km/h</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Renderizar Feed de Eventos
+      const feedEl = document.getElementById('event-feed');
+      feedEl.innerHTML = state.events.map(ev => `
+        <div class="log-item ${ev.type}">
+          <span class="time">${ev.time}</span>
+          <span>${ev.message}</span>
+        </div>
+      `).join('');
+    }
+
+    // Acciones de control
+    async function togglePause() {
+      await fetch('/api/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_pause' })
+      });
+      fetchState();
+    }
+
+    async function setSpeed(multiplier) {
+      document.querySelectorAll('.speed-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      await fetch('/api/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_speed', value: multiplier })
+      });
+    }
+
+    async function forceFill() {
+      await fetch('/api/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'force_fill', value: 95.0 })
+      });
+      fetchState();
+    }
+
+    async function emptyAll() {
+      await fetch('/api/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'empty_all' })
+      });
+      fetchState();
+    }
+
+    async function toggleBackendSync() {
+      await fetch('/api/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle_backend' })
+      });
+      fetchState();
+    }
+
+    // Iniciar polling regular cada 1.5s
+    fetchState();
+    setInterval(fetchState, 1500);
+  </script>
+</body>
+</html>

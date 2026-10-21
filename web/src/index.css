@@ -1,0 +1,52 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;600&display=swap");
+@import "tailwindcss";
+
+/* ─── Design System: Eco_Ruta (Zinc Grayscale + Eco Brand) ─────────── */
+:root {
+  --foreground: #0a0a0a;
+  --primary: #000000;
+  --primary-foreground: #ffffff;
+  --primary-brand: #8db37e;
+  --primary-brand-light: #b8ebba;
+  --background: #ffffff;
+  --muted: #f4f4f4;
+  --muted-foreground: #737373;
+  --border: #e5e5e5;
+  --destructive: #ef4444;
+  --destructive-muted: #ffb0b0;
+
+  /* Colores semánticos por tipo de residuo */
+  --waste-papel: #4338ca;
+  --waste-papel-bg: #e0e7ff;
+  --waste-vidrio: #15803d;
+  --waste-vidrio-bg: #dcfce7;
+  --waste-plastico: #a16207;
+  --waste-plastico-bg: #fef9c3;
+  --waste-metal: #be123c;
+  --waste-metal-bg: #ffe4e6;
+  --waste-escombro: #4b5563;
+  --waste-escombro-bg: #f3f4f6;
+  --waste-organico: #7c3aed;
+  --waste-organico-bg: #ede9fe;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "DM Sans", sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Leaflet map container override */
+.leaflet-container {
+  font-family: "DM Sans", sans-serif;
+  height: 100%;
+  width: 100%;
+  border-radius: 12px;
+}
