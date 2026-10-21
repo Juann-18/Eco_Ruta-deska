@@ -5,6 +5,8 @@ import { env } from "./config/env.js";
 import { healthRouter } from "./modules/health/health.router.js";
 import { telemetryRouter } from "./modules/telemetry/telemetry.router.js";
 import { pointsRouter } from "./modules/points/points.router.js";
+import { authRouter, usersRouter } from "./modules/auth/auth.router.js";
+import { routesRouter, collectionsRouter } from "./modules/routes/routes.router.js";
 import { notFoundHandler } from "./middlewares/not-found.js";
 import { errorHandler } from "./middlewares/error-handler.js";
 
@@ -26,6 +28,10 @@ export function createApp(): Express {
   app.use("/api", healthRouter);
   app.use("/api/telemetry", telemetryRouter);
   app.use("/api/puntos", pointsRouter);
+  app.use("/api/auth", authRouter);
+  app.use("/api/users", usersRouter);
+  app.use("/api/rutas", routesRouter);
+  app.use("/api/recolecciones", collectionsRouter);
 
   // Manejo de rutas no encontradas y errores globales
   app.use(notFoundHandler);

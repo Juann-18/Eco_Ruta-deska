@@ -6,6 +6,7 @@ import {
   WasteType,
 } from "./points.schema.js";
 import { telemetryService } from "../telemetry/telemetry.service.js";
+import { prisma } from "../../config/prisma.js";
 
 export interface StoredRecyclePoint {
   id: string;
@@ -317,6 +318,26 @@ export class PointsService {
     };
 
     this.points.set(id, newPoint);
+
+    // Persistir en base de datos si está disponible
+    prisma.recyclePoint
+      .create({
+        data: {
+          id,
+          code: data.code,
+          name: data.name,
+          address: data.address,
+          comuna: data.comuna,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          wasteType: data.wasteType,
+          capacityKg: data.capacityKg,
+          currentFillPercentage: 0.0,
+          isActive: true,
+        },
+      })
+      .catch(() => {});
+
     return this.enrichPoint(newPoint);
   }
 
@@ -333,6 +354,23 @@ export class PointsService {
     };
 
     this.points.set(id, updated);
+
+    // Persistir en base de datos
+    prisma.recyclePoint
+      .update({
+        where: { id },
+        data: {
+          ...(data.name && { name: data.name }),
+          ...(data.address && { address: data.address }),
+          ...(data.comuna !== undefined && { comuna: data.comuna }),
+          ...(data.latitude !== undefined && { latitude: data.latitude }),
+          ...(data.longitude !== undefined && { longitude: data.longitude }),
+          ...(data.wasteType && { wasteType: data.wasteType }),
+          ...(data.capacityKg !== undefined && { capacityKg: data.capacityKg }),
+        },
+      })
+      .catch(() => {});
+
     return this.enrichPoint(updated);
   }
 
@@ -344,7 +382,69 @@ export class PointsService {
 
     existing.isActive = false;
     existing.updatedAt = new Date().toISOString();
+
+    prisma.recyclePoint
+      .update({
+        where: { id },
+        data: { isActive: false },
+      })
+      .catch(() => {});
+
     return true;
+  }
+
+  public emptyPoint(idOrCode: string): boolean {
+    for (const point of this.points.values()) {
+      if (point.id === idOrCode || point.code === idOrCode) {
+        point.currentFillPercentage = 0.0;
+        const now = new Date();
+        point.lastEmptiedAt = now.toISOString();
+        point.updatedAt = now.toISOString();
+
+        prisma.recyclePoint
+          .update({
+            where: { id: point.id },
+            data: {
+              currentFillPercentage: 0.0,
+              lastEmptiedAt: now,
+            },
+          })
+          .catch(() => {});
+
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public async syncFromDatabase(): Promise<void> {
+    try {
+      const dbPoints = await prisma.recyclePoint.findMany();
+      if (dbPoints.length > 0) {
+        this.points.clear();
+        for (const p of dbPoints) {
+          this.points.set(p.id, {
+            id: p.id,
+            code: p.code,
+            name: p.name,
+            address: p.address,
+            comuna: p.comuna,
+            latitude: Number(p.latitude),
+            longitude: Number(p.longitude),
+            wasteType: p.wasteType as WasteType,
+            capacityKg: Number(p.capacityKg),
+            currentFillPercentage: Number(p.currentFillPercentage),
+            isActive: p.isActive,
+            lastEmptiedAt: p.lastEmptiedAt ? p.lastEmptiedAt.toISOString() : null,
+            createdAt: p.createdAt.toISOString(),
+            updatedAt: p.updatedAt.toISOString(),
+          });
+        }
+        console.log(`♻️ Sincronizados ${dbPoints.length} puntos de reciclaje desde PostgreSQL.`);
+      }
+    } catch {
+      // Ignora si no hay conexión a base de datos
+    }
   }
 }
 
