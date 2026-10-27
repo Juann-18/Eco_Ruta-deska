@@ -1,8 +1,6 @@
-import { ensureDatabaseServer, stopDatabaseServer } from "../src/lib/db-server.js";
 import { prisma } from "../src/config/prisma.js";
 
 async function main() {
-  await ensureDatabaseServer();
   await prisma.$connect();
 
   const tables: Array<{ table_name: string }> = await prisma.$queryRaw`
@@ -15,7 +13,7 @@ async function main() {
   console.log("=== TABLAS FÍSICAS CREADAS EN POSTGRESQL ===");
   tables.forEach((t) => console.log(` ✔ ${t.table_name}`));
 
-  console.log("\n=== CONTEO DE REGISTROS INSERTADOS (SEED) ===");
+  console.log("\n=== CONTEO DE REGISTROS EN POSTGRESQL ===");
   console.log(" 🏢 Empresas (companies):", await prisma.company.count());
   console.log(" 🚛 Vehículos (vehicles):", await prisma.vehicle.count());
   console.log(" 👤 Usuarios (users):", await prisma.user.count());
@@ -27,7 +25,6 @@ async function main() {
   console.log(" 🔔 Notificaciones (notifications):", await prisma.notification.count());
 
   await prisma.$disconnect();
-  await stopDatabaseServer();
 }
 
 main().catch((e) => {

@@ -14,7 +14,7 @@ export class PointsController {
   ): Promise<void> {
     try {
       const query = getPointsQuerySchema.parse(req.query);
-      const points = pointsService.findAll(query);
+      const points = await pointsService.findAll(query);
 
       res.status(200).json({
         success: true,
@@ -33,7 +33,7 @@ export class PointsController {
   ): Promise<void> {
     try {
       const { id } = req.params;
-      const point = pointsService.findById(id);
+      const point = await pointsService.findById(id);
 
       if (!point) {
         res.status(404).json({
@@ -60,7 +60,7 @@ export class PointsController {
   ): Promise<void> {
     try {
       const validated = createPointSchema.parse(req.body);
-      const created = pointsService.create(validated);
+      const created = await pointsService.create(validated);
 
       res.status(201).json({
         success: true,
@@ -80,7 +80,7 @@ export class PointsController {
     try {
       const { id } = req.params;
       const validated = updatePointSchema.parse(req.body);
-      const updated = pointsService.update(id, validated);
+      const updated = await pointsService.update(id, validated);
 
       if (!updated) {
         res.status(404).json({
@@ -108,7 +108,7 @@ export class PointsController {
   ): Promise<void> {
     try {
       const { id } = req.params;
-      const deleted = pointsService.delete(id);
+      const deleted = await pointsService.delete(id);
 
       if (!deleted) {
         res.status(404).json({

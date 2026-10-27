@@ -6,7 +6,7 @@ echo   🌱 INICIANDO ECOSISTEMA COMPLETO ECO_RUTA
 echo =================================================================
 echo.
 echo 1. Iniciando Backend REST (Puerto 3000)...
-start "Eco_Ruta - Backend (Puerto 3000)" cmd /k "cd /d %~dp0backend && node dist/index.js"
+start "Eco_Ruta - Backend (Puerto 3000)" cmd /k "cd /d %~dp0backend && npm.cmd run dev"
 
 timeout /t 2 > nul
 

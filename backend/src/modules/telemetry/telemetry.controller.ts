@@ -13,7 +13,7 @@ export class TelemetryController {
   ): Promise<void> {
     try {
       const validated = containerTelemetrySchema.parse(req.body);
-      const record = telemetryService.processContainerTelemetry(validated);
+      const record = await telemetryService.processContainerTelemetry(validated);
 
       res.status(200).json({
         success: true,

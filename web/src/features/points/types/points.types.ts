@@ -18,6 +18,7 @@ export interface RecyclePoint {
   capacityKg: number;
   currentFillPercentage: number;
   currentWeightKg: number;
+  companyName?: string;
   isActive: boolean;
   isCritical: boolean;
   batteryPercentage: number;

@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CategoryGuideView } from "./category-guide-view";
+import { useAuthStore } from "../auth/auth.store";
+import {
+  getNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "../reports/api/reports.api";
 import type { WasteType } from "../points/types/points.types";
 import type { NavTab } from "../../common/layouts/AppShell";
 
@@ -9,13 +16,47 @@ interface HomeViewProps {
   selectedComuna?: number;
 }
 
+function formatRelativeTime(isoDate: string): string {
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const mins = Math.max(1, Math.floor(diffMs / 60000));
+  if (mins < 60) return `Hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Hace ${hours} h`;
+  return "Ayer";
+}
+
+function getNoticeCircleColors(type: string): { outer: string; inner: string } {
+  const upper = type.toUpperCase();
+  if (upper.includes("CAMION") || upper.includes("PROXIMIDAD")) {
+    return { outer: "#C8EEC8", inner: "#4CAF50" };
+  }
+  if (upper.includes("LLENO") || upper.includes("ALERT")) {
+    return { outer: "#FECACA", inner: "#EF4444" };
+  }
+  if (upper.includes("EMPRESA") || upper.includes("REPORTE")) {
+    return { outer: "#C7D2FE", inner: "#4F46E5" };
+  }
+  return { outer: "#FEF08A", inner: "#EAB308" };
+}
+
 export function HomeView({
   onNavigateToTab,
   onSelectWasteType,
+  selectedComuna = 1,
 }: HomeViewProps) {
+  const { user } = useAuthStore();
+  const queryClient = useQueryClient();
   const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(null);
+  const [isAvisosOpen, setIsAvisosOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState("16:29");
   const [dayName, setDayName] = useState("martes");
+  const firstName = user?.name?.trim().split(" ")[0] || "Ciudadano";
+
+  const { data: notices = [], isLoading: loadingNotices } = useQuery({
+    queryKey: ["notifications", selectedComuna],
+    queryFn: () => getNotifications(selectedComuna),
+    enabled: isAvisosOpen,
+  });
 
   useEffect(() => {
     const updateTime = () => {
@@ -33,7 +74,100 @@ export function HomeView({
     return () => clearInterval(interval);
   }, []);
 
-  // Si seleccionó una categoría, renderizar la vista de guía detallada (Guías de Separación)
+  const handleMarkAllRead = async () => {
+    await markAllNotificationsRead(selectedComuna);
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+  };
+
+  const handleMarkOneRead = async (id: string) => {
+    await markNotificationRead(id);
+    queryClient.invalidateQueries({ queryKey: ["notifications"] });
+  };
+
+  // ── Subvista 1: Avisos (Rutas__reportes_y_avisos__Home___Avisos.png) ──
+  if (isAvisosOpen) {
+    return (
+      <div className="flex-1 overflow-y-auto px-5 py-3 flex flex-col space-y-4 select-none">
+        <div>
+          <button
+            onClick={() => setIsAvisosOpen(false)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-zinc-200 bg-white text-xs font-bold text-zinc-900 hover:bg-zinc-50 transition-colors cursor-pointer shadow-2xs"
+          >
+            <span>‹</span>
+            <span>Inicio</span>
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-[28px] font-extrabold tracking-tight text-black">
+            Avisos
+          </h1>
+          <button
+            onClick={handleMarkAllRead}
+            className="px-3.5 py-1.5 rounded-full border border-zinc-200 bg-white text-[11px] font-bold text-zinc-800 hover:bg-zinc-50 transition-colors cursor-pointer shadow-2xs"
+          >
+            Marcar todo como leído
+          </button>
+        </div>
+
+        <div className="bg-[#F8F8FA] rounded-3xl p-3 space-y-2.5">
+          {loadingNotices && (
+            <div className="py-8 text-center text-xs text-zinc-500 font-medium">
+              Cargando avisos...
+            </div>
+          )}
+
+          {!loadingNotices && notices.length === 0 && (
+            <div className="py-8 text-center text-xs text-zinc-500 font-medium">
+              No tienes avisos registrados en tu sector.
+            </div>
+          )}
+
+          {!loadingNotices &&
+            notices.map((n) => {
+              const colors = getNoticeCircleColors(n.type);
+              return (
+                <div
+                  key={n.id}
+                  onClick={() => {
+                    if (!n.isRead) handleMarkOneRead(n.id);
+                  }}
+                  className="bg-white rounded-3xl p-4 flex items-start gap-3.5 relative shadow-2xs border border-zinc-100/80 cursor-pointer hover:border-zinc-200 transition-colors"
+                >
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: colors.outer }}
+                  >
+                    <span
+                      className="w-4 h-4 rounded-full"
+                      style={{ backgroundColor: colors.inner }}
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className="text-xs font-extrabold text-zinc-950 leading-snug">
+                      {n.title}
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">
+                      {n.message}
+                    </p>
+                    <p className="text-[11px] text-zinc-400 mt-1">
+                      {formatRelativeTime(n.createdAt)}
+                    </p>
+                  </div>
+
+                  {!n.isRead && (
+                    <span className="w-2 h-2 rounded-full bg-[#4CAF50] absolute top-4 right-4" />
+                  )}
+                </div>
+              );
+            })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Subvista 2: Guía de Separación por Categoría ──
   if (selectedCategoryKey) {
     return (
       <CategoryGuideView
@@ -125,7 +259,7 @@ export function HomeView({
           {/* Saludo con manito */}
           <div className="flex items-center gap-2 text-right">
             <div>
-              <p className="text-sm font-bold text-zinc-900 leading-tight">Hola Alex.</p>
+              <p className="text-sm font-bold text-zinc-900 leading-tight">Hola {firstName}.</p>
               <p className="text-xs text-zinc-600 font-medium">Es {dayName}!</p>
             </div>
             <div className="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-lg shrink-0">
@@ -134,8 +268,12 @@ export function HomeView({
           </div>
         </div>
 
-        {/* Pill verde de estado del servicio */}
-        <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#D4F5C9] text-emerald-950 text-xs font-semibold shadow-xs">
+        {/* Pill verde de estado del servicio -> Abre vista de Avisos */}
+        <button
+          type="button"
+          onClick={() => setIsAvisosOpen(true)}
+          className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#D4F5C9] hover:bg-[#c3efb4] text-emerald-950 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+        >
           <div className="w-6 h-6 rounded-full bg-[#83D973] flex items-center justify-center text-white text-xs">
             <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
@@ -144,7 +282,7 @@ export function HomeView({
           <span className="text-[11px] font-semibold text-emerald-900">
             Servicio disponible a partir de las 17:00
           </span>
-        </div>
+        </button>
       </div>
 
       {/* ── Título Categorías ── */}

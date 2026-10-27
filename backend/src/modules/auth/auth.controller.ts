@@ -11,7 +11,7 @@ export class AuthController {
   ): Promise<void> {
     try {
       const validated = registerSchema.parse(req.body);
-      const result = authService.register(validated);
+      const result = await authService.register(validated);
 
       res.cookie("access_token", result.token, {
         httpOnly: true,
@@ -37,7 +37,7 @@ export class AuthController {
   ): Promise<void> {
     try {
       const validated = loginSchema.parse(req.body);
-      const result = authService.login(validated);
+      const result = await authService.login(validated);
 
       res.cookie("access_token", result.token, {
         httpOnly: true,
@@ -69,29 +69,34 @@ export class AuthController {
 
   public static async getMe(
     req: AuthenticatedRequest,
-    res: Response
+    res: Response,
+    next: NextFunction
   ): Promise<void> {
-    if (!req.user) {
-      res.status(401).json({
-        error: "No autenticado",
-        code: "UNAUTHORIZED",
-      });
-      return;
-    }
+    try {
+      if (!req.user) {
+        res.status(401).json({
+          error: "No autenticado",
+          code: "UNAUTHORIZED",
+        });
+        return;
+      }
 
-    const user = authService.getById(req.user.id);
-    if (!user) {
-      res.status(404).json({
-        error: "Usuario no encontrado",
-        code: "USER_NOT_FOUND",
-      });
-      return;
-    }
+      const user = await authService.getById(req.user.id);
+      if (!user) {
+        res.status(404).json({
+          error: "Usuario no encontrado",
+          code: "USER_NOT_FOUND",
+        });
+        return;
+      }
 
-    res.status(200).json({
-      success: true,
-      data: user,
-    });
+      res.status(200).json({
+        success: true,
+        data: user,
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 
   public static async updateProfile(
@@ -109,7 +114,15 @@ export class AuthController {
       }
 
       const validated = updateProfileSchema.parse(req.body);
-      const updated = authService.updateProfile(req.user.id, validated);
+      const updated = await authService.updateProfile(req.user.id, validated);
+
+      if (!updated) {
+        res.status(404).json({
+          error: "Usuario no encontrado",
+          code: "USER_NOT_FOUND",
+        });
+        return;
+      }
 
       res.status(200).json({
         success: true,

@@ -1,4 +1,5 @@
 import { ContainerTelemetryInput, TruckTelemetryInput } from "./telemetry.schema.js";
+import { prisma } from "../../config/prisma.js";
 
 export interface TelemetryAlert {
   id: string;
@@ -26,7 +27,9 @@ export class TelemetryService {
   private trucks = new Map<string, StoredTruckTelemetry>();
   private alerts: TelemetryAlert[] = [];
 
-  public processContainerTelemetry(data: ContainerTelemetryInput): StoredContainerTelemetry {
+  public async processContainerTelemetry(
+    data: ContainerTelemetryInput
+  ): Promise<StoredContainerTelemetry> {
     const isCritical = data.fill_percentage >= 80.0;
     const fireHazard = data.temperature_celsius >= 55.0;
     const now = new Date().toISOString();
@@ -39,6 +42,19 @@ export class TelemetryService {
     };
 
     this.containers.set(data.container_code, record);
+
+    // Sincronizar nivel de llenado en PostgreSQL
+    try {
+      await prisma.recyclePoint.updateMany({
+        where: { code: { equals: data.container_code, mode: "insensitive" } },
+        data: {
+          currentFillPercentage: data.fill_percentage,
+          ...(data.fill_percentage <= 1.0 && { lastEmptiedAt: new Date() }),
+        },
+      });
+    } catch {
+      // Ignorar si el código es de un sensor de prueba no registrado
+    }
 
     if (isCritical) {
       this.addAlert({
@@ -63,6 +79,16 @@ export class TelemetryService {
     }
 
     return record;
+  }
+
+  public resetContainerFill(code: string): void {
+    const existing = this.containers.get(code);
+    if (existing) {
+      existing.fill_percentage = 0.0;
+      existing.weight_kg = 0.0;
+      existing.is_critical = false;
+      existing.last_updated = new Date().toISOString();
+    }
   }
 
   public processTruckTelemetry(data: TruckTelemetryInput): StoredTruckTelemetry {
@@ -128,5 +154,4 @@ export class TelemetryService {
   }
 }
 
-// Instancia singleton para el servicio en memoria
 export const telemetryService = new TelemetryService();

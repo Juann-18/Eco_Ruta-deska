@@ -12,9 +12,9 @@ export function SignInView({
   onGoToForgotPassword,
   onSuccess,
 }: SignInViewProps) {
-  const [email, setEmail] = useState("alex@ecoruta.com");
-  const [password, setPassword] = useState("eco123456");
-  const { login, quickLoginAs, isLoading, error } = useAuthStore();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const { login, isLoading, error } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,11 +22,6 @@ export function SignInView({
     if (ok) {
       onSuccess();
     }
-  };
-
-  const handleQuickRole = async (role: "CIUDADANO" | "RECOLECTOR" | "ADMIN") => {
-    await quickLoginAs(role);
-    onSuccess();
   };
 
   return (
@@ -50,6 +45,19 @@ export function SignInView({
             </div>
           )}
 
+          {/* Campo Correo Electrónico */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-zinc-900 block">Correo Electrónico</label>
+            <input
+              type="email"
+              placeholder="Ingrese su correo"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-4 py-3 rounded-2xl border border-zinc-200 text-xs outline-none focus:border-zinc-500 bg-white"
+            />
+          </div>
+
           {/* Campo Contraseña */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-zinc-900 block">Contraseña</label>
@@ -63,19 +71,6 @@ export function SignInView({
             />
           </div>
 
-          {/* Campo Correo Electrónico */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-zinc-900 block">Correo Electronico</label>
-            <input
-              type="email"
-              placeholder="Ingrese su correo"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-3 rounded-2xl border border-zinc-200 text-xs outline-none focus:border-zinc-500 bg-white"
-            />
-          </div>
-
           {/* Olvide mi contraseña */}
           <div className="text-center pt-1">
             <button
@@ -83,7 +78,7 @@ export function SignInView({
               onClick={onGoToForgotPassword}
               className="text-xs text-zinc-400 hover:text-zinc-600 font-medium cursor-pointer"
             >
-              Olvide mi contraseña
+              Olvidé mi contraseña
             </button>
           </div>
 
@@ -105,33 +100,6 @@ export function SignInView({
             Registrarse
           </button>
         </form>
-
-        {/* Acceso Rápido para Pruebas de Roles */}
-        <div className="pt-2 border-t border-zinc-100 text-center">
-          <p className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold mb-2">
-            Acceso Rápido Demo
-          </p>
-          <div className="flex gap-2 justify-center">
-            <button
-              onClick={() => handleQuickRole("CIUDADANO")}
-              className="px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-700 text-[11px] font-semibold hover:bg-zinc-200"
-            >
-              👤 Alex (Ciudadano)
-            </button>
-            <button
-              onClick={() => handleQuickRole("RECOLECTOR")}
-              className="px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-700 text-[11px] font-semibold hover:bg-zinc-200"
-            >
-              🚛 Carlos (Conductor)
-            </button>
-            <button
-              onClick={() => handleQuickRole("ADMIN")}
-              className="px-2.5 py-1 rounded-lg bg-zinc-100 text-zinc-700 text-[11px] font-semibold hover:bg-zinc-200"
-            >
-              🏢 Admin
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -13,8 +13,8 @@ class SimulatedContainer:
 
     def __init__(self, code: str, name: str, address: str, comuna: int,
                  waste_type: str, lat: float, lng: float, capacity_kg: float = 120.0,
-                 initial_fill: float = None):
-        self.id = str(uuid.uuid4())
+                 initial_fill: float = None, container_id: str = None):
+        self.id = container_id or str(uuid.uuid4())
         self.code = code
         self.name = name
         self.address = address

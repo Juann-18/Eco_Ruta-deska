@@ -43,10 +43,12 @@ def main():
     parser.add_argument("--containers", type=int, default=DEFAULT_NUM_CONTAINERS, help="Cantidad de contenedores")
     parser.add_argument("--trucks", type=int, default=DEFAULT_NUM_TRUCKS, help="Cantidad de camiones recolectores")
     parser.add_argument("--speed", type=float, default=1.0, help="Velocidad de simulación (1.0 = tiempo real)")
-    parser.add_argument("--sync-backend", action="store_true", help="Habilitar envío automático de telemetría al backend")
+    parser.add_argument("--sync-backend", action="store_true", default=True, help="Habilitar envío automático de telemetría al backend (activo por defecto)")
+    parser.add_argument("--no-sync", action="store_true", help="Deshabilitar sincronización con el backend")
     parser.add_argument("--backend-url", type=str, default=API_BACKEND_URL, help="URL base del API backend")
 
     args = parser.parse_args()
+    sync_enabled = not args.no_sync
 
     print("=" * 65)
     print("🌱 ECO_RUTA — SIMULADOR DE TELEMETRÍA IOT & GEMELO DIGITAL")
@@ -54,15 +56,18 @@ def main():
     print("=" * 65)
 
     # 1. Instanciar Motor de Simulación
-    engine = SimulationEngine(num_containers=args.containers, num_trucks=args.trucks)
+    engine = SimulationEngine(
+        num_containers=args.containers,
+        num_trucks=args.trucks,
+        backend_url=args.backend_url,
+        forward_to_backend=sync_enabled,
+    )
     engine.time_acceleration = args.speed
-    engine.forward_to_backend = args.sync_backend
-    engine.backend_url = args.backend_url
 
     print(f"📦 Contenedores inicializados: {len(engine.containers)}")
     print(f"🚛 Camiones inicializados:     {len(engine.trucks)}")
     print(f"⏩ Velocidad inicial:           {engine.time_acceleration}x")
-    print(f"📡 Sincronización Backend:     {'ACTIVADA (' + args.backend_url + ')' if args.sync_backend else 'DESACTIVADA'}")
+    print(f"📡 Sincronización Backend:     {'ACTIVADA (' + args.backend_url + ')' if sync_enabled else 'DESACTIVADA'}")
 
     # 2. Hilo del bucle de simulación
     engine.running = True

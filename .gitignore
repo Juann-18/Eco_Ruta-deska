@@ -58,3 +58,9 @@ coverage/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Embedded Database
+**/embedded-data/
+*.sqlite
+*.sqlite-journal
+

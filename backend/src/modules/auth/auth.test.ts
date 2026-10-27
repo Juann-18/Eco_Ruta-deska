@@ -1,9 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../app.js";
+import { prisma } from "../../config/prisma.js";
 
 describe("Módulo de Autenticación y Usuarios (Fase 2 - Backend)", () => {
   const app = createApp();
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({
+      where: { email: { startsWith: "maria_" } },
+    });
+  });
 
   describe("POST /api/auth/login", () => {
     it("debe iniciar sesión con credenciales correctas (Alex Ciudadano)", async () => {

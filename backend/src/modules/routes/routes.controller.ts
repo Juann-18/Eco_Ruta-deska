@@ -12,7 +12,7 @@ export class RoutesController {
   public async getRoutes(req: Request, res: Response, NextFunction: NextFunction) {
     try {
       const query = GetRoutesQuerySchema.parse(req.query);
-      const routes = routesService.findAll(query);
+      const routes = await routesService.findAll(query);
       res.json({
         data: routes,
         meta: {
@@ -29,7 +29,7 @@ export class RoutesController {
   public async getFeaturedRoute(req: Request, res: Response, NextFunction: NextFunction) {
     try {
       const comuna = req.query.comuna ? Number(req.query.comuna) : 1;
-      const featured = routesService.findFeatured(comuna);
+      const featured = await routesService.findFeatured(comuna);
       res.json({ data: featured });
     } catch (err) {
       NextFunction(err);
@@ -39,7 +39,7 @@ export class RoutesController {
   public async getRouteById(req: Request, res: Response, NextFunction: NextFunction) {
     try {
       const { id } = req.params;
-      const route = routesService.findById(id);
+      const route = await routesService.findById(id);
 
       if (!route) {
         res.status(404).json({
@@ -58,7 +58,7 @@ export class RoutesController {
   public async createRoute(req: Request, res: Response, NextFunction: NextFunction) {
     try {
       const input = CreateRouteSchema.parse(req.body);
-      const newRoute = routesService.create(input);
+      const newRoute = await routesService.create(input);
       res.status(201).json({ data: newRoute });
     } catch (err) {
       NextFunction(err);
@@ -69,7 +69,7 @@ export class RoutesController {
     try {
       const { id } = req.params;
       const input = UpdateRouteStatusSchema.parse(req.body);
-      const updated = routesService.updateStatus(id, input.status);
+      const updated = await routesService.updateStatus(id, input.status);
 
       if (!updated) {
         res.status(404).json({
@@ -88,7 +88,7 @@ export class RoutesController {
   public async checkinCollection(req: Request, res: Response, NextFunction: NextFunction) {
     try {
       const { id } = req.params;
-      const col = routesService.checkinCollection(id);
+      const col = await routesService.checkinCollection(id);
 
       if (!col) {
         res.status(404).json({
@@ -108,7 +108,7 @@ export class RoutesController {
     try {
       const { id } = req.params;
       const input = CompleteCollectionSchema.parse(req.body);
-      const result = routesService.completeCollection(
+      const result = await routesService.completeCollection(
         id,
         input.collectedWeightKg,
         input.notes
@@ -135,8 +135,8 @@ export class RoutesController {
     try {
       const { id } = req.params;
       const input = RouteIncidentSchema.parse(req.body);
-      const reporterId = (req as any).user?.id || "usr-recolector-default";
-      const incident = routesService.reportIncident(id, reporterId, input);
+      const reporterId = (req as any).user?.id || "";
+      const incident = await routesService.reportIncident(id, reporterId, input);
 
       if (!incident) {
         res.status(404).json({
@@ -157,8 +157,58 @@ export class RoutesController {
 
   public async getVehicles(_req: Request, res: Response, NextFunction: NextFunction) {
     try {
-      const vehicles = routesService.getVehicles();
+      const vehicles = await routesService.getVehicles();
       res.json({ data: vehicles });
+    } catch (err) {
+      NextFunction(err);
+    }
+  }
+
+  public async getCompanies(_req: Request, res: Response, NextFunction: NextFunction) {
+    try {
+      const companies = await routesService.getCompanies();
+      res.json({ data: companies });
+    } catch (err) {
+      NextFunction(err);
+    }
+  }
+
+  public async getNotifications(req: Request, res: Response, NextFunction: NextFunction) {
+    try {
+      const comuna = req.query.comuna ? Number(req.query.comuna) : undefined;
+      const notifications = await routesService.getNotifications(comuna);
+      res.json({ data: notifications });
+    } catch (err) {
+      NextFunction(err);
+    }
+  }
+
+  public async markAllNotificationsRead(req: Request, res: Response, NextFunction: NextFunction) {
+    try {
+      const comuna = req.query.comuna ? Number(req.query.comuna) : undefined;
+      const notifications = await routesService.markAllNotificationsRead(comuna);
+      res.json({
+        success: true,
+        message: "Todas las notificaciones fueron marcadas como leídas",
+        data: notifications,
+      });
+    } catch (err) {
+      NextFunction(err);
+    }
+  }
+
+  public async markNotificationRead(req: Request, res: Response, NextFunction: NextFunction) {
+    try {
+      const { id } = req.params;
+      const updated = await routesService.markNotificationRead(id);
+      if (!updated) {
+        res.status(404).json({
+          error: "Notificación no encontrada",
+          code: "NOTIFICATION_NOT_FOUND",
+        });
+        return;
+      }
+      res.json({ success: true, data: updated });
     } catch (err) {
       NextFunction(err);
     }

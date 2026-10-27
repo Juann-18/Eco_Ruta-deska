@@ -1,4 +1,4 @@
-import { randomBytes, pbkdf2Sync, randomUUID } from "node:crypto";
+import { randomBytes, pbkdf2Sync, createHmac, timingSafeEqual } from "node:crypto";
 import {
   LoginInput,
   RegisterInput,
@@ -6,13 +6,12 @@ import {
   UserRole,
 } from "./auth.schema.js";
 import { prisma } from "../../config/prisma.js";
+import { env } from "../../config/env.js";
 
-export interface UserRecord {
+export interface SafeUser {
   id: string;
   name: string;
   email: string;
-  passwordHash: string;
-  salt: string;
   phone?: string;
   role: UserRole;
   comuna: number;
@@ -21,99 +20,43 @@ export interface UserRecord {
   updatedAt: string;
 }
 
-export type SafeUser = Omit<UserRecord, "passwordHash" | "salt">;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class AuthService {
-  private users: Map<string, UserRecord> = new Map();
-
-  constructor() {
-    this.seedDefaultUsers();
-  }
-
   private hashPassword(password: string, salt: string): string {
     return pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
   }
 
-  private seedDefaultUsers() {
-    // 1. Ciudadano (Alex, de las capturas de Home.png)
-    this.createUserInternal({
-      name: "Alex Ciudadano",
-      email: "alex@ecoruta.com",
-      password: "eco123456",
-      phone: "+57 315 224 8899",
-      role: "CIUDADANO",
-      comuna: 1,
-    }, false);
-
-    // 2. Conductor / Recolector de EcoAseo
-    this.createUserInternal({
-      name: "Carlos Conductor",
-      email: "conductor@ecoaseo.com",
-      password: "eco123456",
-      phone: "+57 312 998 7744",
-      role: "RECOLECTOR",
-      comuna: 1,
-    }, false);
-
-    // 3. Administrador Municipal
-    this.createUserInternal({
-      name: "Supervisor Municipal Tuluá",
-      email: "admin@tulua.gov.co",
-      password: "eco123456",
-      phone: "+57 602 224 5500",
-      role: "ADMIN",
-      comuna: 1,
-    }, false);
-  }
-
-  private createUserInternal(data: RegisterInput, persistToDb = true): UserRecord {
-    const id = randomUUID();
-    const salt = randomBytes(16).toString("hex");
-    const passwordHash = this.hashPassword(data.password, salt);
-    const now = new Date().toISOString();
-
-    const user: UserRecord = {
-      id,
-      name: data.name,
-      email: data.email.toLowerCase(),
-      passwordHash,
-      salt,
-      phone: data.phone,
-      role: data.role,
-      comuna: data.comuna,
-      createdAt: now,
-      updatedAt: now,
+  public toSafeUser(u: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    role: string;
+    comuna: number | null;
+    avatarUrl: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }): SafeUser {
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email.toLowerCase(),
+      phone: u.phone ?? undefined,
+      role: u.role as UserRole,
+      comuna: u.comuna ?? 1,
+      avatarUrl: u.avatarUrl ?? undefined,
+      createdAt: u.createdAt.toISOString(),
+      updatedAt: u.updatedAt.toISOString(),
     };
-
-    this.users.set(user.email, user);
-
-    // Guardar en la base de datos de manera no bloqueante si se solicita
-    if (persistToDb) {
-      prisma.user
-        .create({
-          data: {
-            id,
-            name: user.name,
-            email: user.email,
-            passwordHash: `${salt}:${passwordHash}`,
-            phone: user.phone,
-            role: user.role,
-            comuna: user.comuna,
-          },
-        })
-        .catch(() => {});
-    }
-
-    return user;
   }
 
-  public toSafeUser(user: UserRecord): SafeUser {
-    const { passwordHash, salt, ...safe } = user;
-    return safe;
-  }
+  public async register(data: RegisterInput): Promise<{ user: SafeUser; token: string }> {
+    const normalizedEmail = data.email.toLowerCase().trim();
+    const existing = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
 
-  public register(data: RegisterInput): { user: SafeUser; token: string } {
-    const existing = this.users.get(data.email.toLowerCase());
     if (existing) {
       throw {
         statusCode: 409,
@@ -122,17 +65,35 @@ export class AuthService {
       };
     }
 
-    const created = this.createUserInternal(data);
-    const token = this.generateToken(created);
+    const salt = randomBytes(16).toString("hex");
+    const hash = this.hashPassword(data.password, salt);
+
+    const created = await prisma.user.create({
+      data: {
+        name: data.name.trim(),
+        email: normalizedEmail,
+        passwordHash: `${salt}:${hash}`,
+        phone: data.phone,
+        role: data.role,
+        comuna: data.comuna,
+      },
+    });
+
+    const safeUser = this.toSafeUser(created);
+    const token = this.generateToken(safeUser);
 
     return {
-      user: this.toSafeUser(created),
+      user: safeUser,
       token,
     };
   }
 
-  public login(data: LoginInput): { user: SafeUser; token: string } {
-    const user = this.users.get(data.email.toLowerCase());
+  public async login(data: LoginInput): Promise<{ user: SafeUser; token: string }> {
+    const normalizedEmail = data.email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
     if (!user) {
       throw {
         statusCode: 401,
@@ -141,8 +102,14 @@ export class AuthService {
       };
     }
 
-    const computedHash = this.hashPassword(data.password, user.salt);
-    if (computedHash !== user.passwordHash) {
+    const parts = user.passwordHash.includes(":")
+      ? user.passwordHash.split(":")
+      : ["", user.passwordHash];
+    const salt = parts[0];
+    const storedHash = parts[1] || user.passwordHash;
+
+    const computedHash = this.hashPassword(data.password, salt);
+    if (computedHash !== storedHash) {
       throw {
         statusCode: 401,
         code: "INVALID_CREDENTIALS",
@@ -150,81 +117,60 @@ export class AuthService {
       };
     }
 
-    const token = this.generateToken(user);
+    const safeUser = this.toSafeUser(user);
+    const token = this.generateToken(safeUser);
+
     return {
-      user: this.toSafeUser(user),
+      user: safeUser,
       token,
     };
   }
 
-  public getById(id: string): SafeUser | null {
-    for (const u of this.users.values()) {
-      if (u.id === id) {
-        return this.toSafeUser(u);
-      }
+  public async getById(id: string): Promise<SafeUser | null> {
+    if (!UUID_REGEX.test(id)) {
+      return null;
     }
-    return null;
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return this.toSafeUser(user);
   }
 
-  public updateProfile(id: string, data: UpdateProfileInput): SafeUser | null {
-    for (const u of this.users.values()) {
-      if (u.id === id) {
-        if (data.name) u.name = data.name;
-        if (data.phone) u.phone = data.phone;
-        if (data.comuna) u.comuna = data.comuna;
-        if (data.avatarUrl) u.avatarUrl = data.avatarUrl;
-        u.updatedAt = new Date().toISOString();
-
-        prisma.user
-          .update({
-            where: { id },
-            data: {
-              ...(data.name && { name: data.name }),
-              ...(data.phone && { phone: data.phone }),
-              ...(data.comuna !== undefined && { comuna: data.comuna }),
-              ...(data.avatarUrl && { avatarUrl: data.avatarUrl }),
-            },
-          })
-          .catch(() => {});
-
-        return this.toSafeUser(u);
-      }
+  public async updateProfile(id: string, data: UpdateProfileInput): Promise<SafeUser | null> {
+    if (!UUID_REGEX.test(id)) {
+      return null;
     }
-    return null;
+
+    const existing = await prisma.user.findUnique({ where: { id } });
+    if (!existing) {
+      return null;
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        ...(data.name && { name: data.name.trim() }),
+        ...(data.phone !== undefined && { phone: data.phone }),
+        ...(data.comuna !== undefined && { comuna: data.comuna }),
+        ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl }),
+      },
+    });
+
+    return this.toSafeUser(updated);
   }
 
   public async syncFromDatabase(): Promise<void> {
-    try {
-      const dbUsers = await prisma.user.findMany();
-      if (dbUsers.length > 0) {
-        for (const u of dbUsers) {
-          const parts = u.passwordHash.includes(":")
-            ? u.passwordHash.split(":")
-            : ["", u.passwordHash];
-          const salt = parts[0];
-          const hash = parts[1] || u.passwordHash;
-          this.users.set(u.email.toLowerCase(), {
-            id: u.id,
-            name: u.name,
-            email: u.email.toLowerCase(),
-            passwordHash: hash,
-            salt,
-            phone: u.phone ?? undefined,
-            role: u.role as UserRole,
-            comuna: u.comuna ?? 1,
-            avatarUrl: u.avatarUrl ?? undefined,
-            createdAt: u.createdAt.toISOString(),
-            updatedAt: u.updatedAt.toISOString(),
-          });
-        }
-        console.log(`👤 Sincronizados ${dbUsers.length} usuarios desde PostgreSQL.`);
-      }
-    } catch {
-      // Si la base de datos no está disponible, continúa con datos en memoria
-    }
+    const count = await prisma.user.count();
+    console.log(`👤 Conectados ${count} usuarios registrados en PostgreSQL.`);
   }
 
-  public generateToken(user: UserRecord): string {
+  public generateToken(user: Pick<SafeUser, "id" | "email" | "role" | "name">): string {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -233,12 +179,32 @@ export class AuthService {
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 86400 * 7, // 7 días
     };
-    return Buffer.from(JSON.stringify(payload)).toString("base64url");
+    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    const signature = createHmac("sha256", env.JWT_SECRET)
+      .update(payloadB64)
+      .digest("base64url");
+
+    return `${payloadB64}.${signature}`;
   }
 
   public verifyToken(token: string): { sub: string; email: string; role: UserRole; name: string } | null {
     try {
-      const decoded = JSON.parse(Buffer.from(token, "base64url").toString("utf-8"));
+      const [payloadB64, signature] = token.split(".");
+      if (!payloadB64 || !signature) {
+        return null;
+      }
+
+      const expectedSig = createHmac("sha256", env.JWT_SECRET)
+        .update(payloadB64)
+        .digest("base64url");
+
+      const sigBuf = Buffer.from(signature);
+      const expectedBuf = Buffer.from(expectedSig);
+      if (sigBuf.length !== expectedBuf.length || !timingSafeEqual(sigBuf, expectedBuf)) {
+        return null;
+      }
+
+      const decoded = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf-8"));
       if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
         return null;
       }

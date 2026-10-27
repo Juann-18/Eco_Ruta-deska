@@ -1,10 +1,26 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../app.js";
 import { pointsService } from "../points/points.service.js";
+import { prisma } from "../../config/prisma.js";
 
 describe("Módulo de Rutas, Flota y Recolecciones (Fase 4)", () => {
   const app = createApp();
+
+  beforeAll(async () => {
+    await prisma.route.updateMany({
+      where: { code: "#RTA-0012" },
+      data: { currentLoadKg: 3600, status: "EN_CAMINO" },
+    });
+    await prisma.route.updateMany({
+      where: { code: "#RTA-0015" },
+      data: { status: "PROGRAMADA", startedAt: null },
+    });
+    await prisma.recyclePoint.updateMany({
+      where: { code: "#CNT-0002" },
+      data: { currentFillPercentage: 88.5 },
+    });
+  });
 
   it("GET /api/rutas debe retornar la lista de rutas ordenadas", async () => {
     const res = await request(app).get("/api/rutas");
@@ -63,7 +79,8 @@ describe("Módulo de Rutas, Flota y Recolecciones (Fase 4)", () => {
 
   it("POST /api/recolecciones/:id/completar debe vaciar contenedor y sumar peso al camión", async () => {
     // Verificamos antes el contenedor #CNT-0002
-    const beforePoint = pointsService.findAll({}).find((p) => p.code === "#CNT-0002");
+    const beforePoints = await pointsService.findAll({});
+    const beforePoint = beforePoints.find((p) => p.code === "#CNT-0002");
     expect(beforePoint).toBeDefined();
 
     const res = await request(app)
@@ -78,7 +95,8 @@ describe("Módulo de Rutas, Flota y Recolecciones (Fase 4)", () => {
     expect(res.body.data.collection.collectedWeightKg).toBe(85.5);
 
     // Verificamos que el contenedor fue vaciado a 0% en pointsService
-    const afterPoint = pointsService.findAll({}).find((p) => p.code === "#CNT-0002");
+    const afterPoints = await pointsService.findAll({});
+    const afterPoint = afterPoints.find((p) => p.code === "#CNT-0002");
     expect(afterPoint?.currentFillPercentage).toBe(0);
 
     // Verificamos que la ruta incrementó su carga

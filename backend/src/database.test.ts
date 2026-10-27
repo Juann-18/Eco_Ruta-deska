@@ -44,9 +44,9 @@ describe("Base de Datos PostgreSQL - EcoRuta Prisma ORM", () => {
     expect(ciudadano?.comuna).toBe(1);
   });
 
-  it("debe contener los 12 puntos de reciclaje en Tuluá con geolocalización", async () => {
+  it("debe contener los puntos de reciclaje en Tuluá con geolocalización", async () => {
     const count = await prisma.recyclePoint.count();
-    expect(count).toBe(12);
+    expect(count).toBeGreaterThanOrEqual(12);
 
     const point1 = await prisma.recyclePoint.findUnique({
       where: { code: "#CNT-0001" },

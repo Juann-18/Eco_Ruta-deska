@@ -48,8 +48,8 @@ COMUNAS = [1, 2, 3, 4, 5, 6]
 
 # Conexión con el Backend de Eco_Ruta
 API_BACKEND_URL = "http://localhost:3000/api"
-FORWARD_TO_BACKEND_DEFAULT = False  # Activado por CLI o interruptor en el panel web
-HTTP_TIMEOUT_SECONDS = 1.0
+FORWARD_TO_BACKEND_DEFAULT = True  # Sincronización activa por defecto con PostgreSQL/Backend
+HTTP_TIMEOUT_SECONDS = 1.5
 
 # Servidor Web interno del Simulador
 SIMULATOR_WEB_HOST = "127.0.0.1"

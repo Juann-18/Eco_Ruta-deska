@@ -157,8 +157,8 @@ async function main() {
     },
   });
 
-  // 5. Puntos de Reciclaje / Contenedores Inteligentes en Tuluá (#CNT-0001 a #CNT-0012)
-  console.log("♻️ Creando 12 puntos y contenedores de reciclaje...");
+  // 5. Puntos de Reciclaje / Contenedores Inteligentes en Tuluá (#CNT-0001 a #CNT-0018)
+  console.log("♻️ Creando 18 puntos y contenedores de reciclaje...");
   const p1 = await prisma.recyclePoint.create({
     data: {
       companyId: ecoAseo.id,
@@ -358,6 +358,108 @@ async function main() {
       wasteType: WasteType.METAL,
       capacityKg: 120.0,
       currentFillPercentage: 65.0,
+      isActive: true,
+      lastEmptiedAt: null,
+    },
+  });
+
+  await prisma.recyclePoint.create({
+    data: {
+      companyId: tuluaVerde.id,
+      code: "#CNT-0013",
+      name: "Estación Ferrocarril Centro",
+      address: "Calle 26 # 18-10",
+      comuna: 1,
+      latitude: 4.0832,
+      longitude: -76.1938,
+      wasteType: WasteType.VIDRIO,
+      capacityKg: 150.0,
+      currentFillPercentage: 54.0,
+      isActive: true,
+      lastEmptiedAt: null,
+    },
+  });
+
+  await prisma.recyclePoint.create({
+    data: {
+      companyId: ecoAseo.id,
+      code: "#CNT-0014",
+      name: "Pasaje Comercial Carrera 25",
+      address: "Cra 25 # 26-40",
+      comuna: 1,
+      latitude: 4.0853,
+      longitude: -76.1965,
+      wasteType: WasteType.ORGANICO,
+      capacityKg: 180.0,
+      currentFillPercentage: 72.0,
+      isActive: true,
+      lastEmptiedAt: null,
+    },
+  });
+
+  await prisma.recyclePoint.create({
+    data: {
+      companyId: reciclablesValle.id,
+      code: "#CNT-0015",
+      name: "Colegio Gimnasio del Pacífico",
+      address: "Calle 32 # 27-40",
+      comuna: 2,
+      latitude: 4.0875,
+      longitude: -76.1972,
+      wasteType: WasteType.PAPEL_CARTON,
+      capacityKg: 150.0,
+      currentFillPercentage: 38.0,
+      isActive: true,
+      lastEmptiedAt: null,
+    },
+  });
+
+  await prisma.recyclePoint.create({
+    data: {
+      companyId: tuluaVerde.id,
+      code: "#CNT-0016",
+      name: "Barrio Victoria Zona Comercial",
+      address: "Cra 34 # 26-10",
+      comuna: 3,
+      latitude: 4.0825,
+      longitude: -76.2035,
+      wasteType: WasteType.VIDRIO,
+      capacityKg: 150.0,
+      currentFillPercentage: 67.0,
+      isActive: true,
+      lastEmptiedAt: null,
+    },
+  });
+
+  await prisma.recyclePoint.create({
+    data: {
+      companyId: ecoAseo.id,
+      code: "#CNT-0017",
+      name: "Parque Barrio Sajonia",
+      address: "Cra 30 # 42-18",
+      comuna: 4,
+      latitude: 4.0912,
+      longitude: -76.2010,
+      wasteType: WasteType.PLASTICO,
+      capacityKg: 120.0,
+      currentFillPercentage: 84.0,
+      isActive: true,
+      lastEmptiedAt: null,
+    },
+  });
+
+  await prisma.recyclePoint.create({
+    data: {
+      companyId: reciclablesValle.id,
+      code: "#CNT-0018",
+      name: "Sector Chiminangos Norte",
+      address: "Transversal 12 # 20-05",
+      comuna: 5,
+      latitude: 4.0785,
+      longitude: -76.2130,
+      wasteType: WasteType.METAL,
+      capacityKg: 150.0,
+      currentFillPercentage: 29.0,
       isActive: true,
       lastEmptiedAt: null,
     },
@@ -583,10 +685,11 @@ async function main() {
     data: {
       userId: userCiudadano.id,
       comuna: 1,
-      title: "Camión recolector aproximándose",
-      message: "El vehículo TUL-482 de EcoAseo se encuentra a 2 paradas de tu sector en el Centro Histórico.",
-      type: "PROXIMIDAD",
+      title: "El camión está en camino",
+      message: "EcoAseo Tuluá llega a tu sector en ~25 min",
+      type: "CAMION_EN_CAMINO",
       isRead: false,
+      createdAt: new Date(Date.now() - 5 * 60 * 1000),
     },
   });
 
@@ -594,10 +697,35 @@ async function main() {
     data: {
       userId: userCiudadano.id,
       comuna: 1,
-      title: "Actualización de tu reporte",
-      message: "Tu reporte #REP-2026-001 (Contenedor Lleno en Parque Infantil) ha pasado a estado EN REVISIÓN.",
-      type: "REPORTE",
+      title: "Contenedor casi lleno",
+      message: "#CNT-0002 en Calle 28 con Cra 20 está al 88.5%",
+      type: "CONTENEDOR_LLENO",
+      isRead: false,
+      createdAt: new Date(Date.now() - 60 * 60 * 1000),
+    },
+  });
+
+  await prisma.notification.create({
+    data: {
+      userId: userCiudadano.id,
+      comuna: 1,
+      title: "Nueva empresa en tu comuna",
+      message: "Tuluá Verde S.A.S. ya está en el directorio",
+      type: "NUEVA_EMPRESA",
       isRead: true,
+      createdAt: new Date(Date.now() - 24 * 3600 * 1000),
+    },
+  });
+
+  await prisma.notification.create({
+    data: {
+      userId: userCiudadano.id,
+      comuna: 1,
+      title: "Recuerda separar tus residuos",
+      message: "Mañana pasa la ruta de papel y cartón",
+      type: "RECORDATORIO",
+      isRead: true,
+      createdAt: new Date(Date.now() - 28 * 3600 * 1000),
     },
   });
 

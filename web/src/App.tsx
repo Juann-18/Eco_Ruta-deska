@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { QueryProvider } from "./common/providers/QueryProvider";
 import { AppShell, type NavTab } from "./common/layouts/AppShell";
 import { HomeView } from "./features/home/home-view";
@@ -14,11 +14,21 @@ import type { WasteType } from "./features/points/types/points.types";
 import "./index.css";
 
 export default function App() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user, checkSession } = useAuthStore();
   const [authScreen, setAuthScreen] = useState<"signin" | "signup" | "forgot">("signin");
-  const [activeTab, setActiveTab] = useState<NavTab>("schedule"); // Iniciar o navegar fluidamente
-  const [selectedComuna, setSelectedComuna] = useState<number>(1);
+  const [activeTab, setActiveTab] = useState<NavTab>("home");
+  const [selectedComuna, setSelectedComuna] = useState<number>(user?.comuna ?? 1);
   const [selectedWasteType, setSelectedWasteType] = useState<WasteType | undefined>(undefined);
+
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
+
+  useEffect(() => {
+    if (user?.comuna) {
+      setSelectedComuna(user.comuna);
+    }
+  }, [user?.comuna]);
 
   return (
     <QueryProvider>
@@ -74,12 +84,13 @@ export default function App() {
             <PointsView
               selectedComuna={selectedComuna}
               initialWasteType={selectedWasteType}
+              onSelectComuna={setSelectedComuna}
+              onNavigateToHome={() => setActiveTab("home")}
             />
           )}
 
           {activeTab === "schedule" && (
             <ScheduleView selectedComuna={selectedComuna} />
-            
           )}
 
           {activeTab === "company" && (

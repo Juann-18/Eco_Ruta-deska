@@ -6,7 +6,13 @@ import { healthRouter } from "./modules/health/health.router.js";
 import { telemetryRouter } from "./modules/telemetry/telemetry.router.js";
 import { pointsRouter } from "./modules/points/points.router.js";
 import { authRouter, usersRouter } from "./modules/auth/auth.router.js";
-import { routesRouter, collectionsRouter } from "./modules/routes/routes.router.js";
+import {
+  routesRouter,
+  collectionsRouter,
+  companiesRouter,
+  notificationsRouter,
+} from "./modules/routes/routes.router.js";
+import { reportsRouter } from "./modules/reports/reports.router.js";
 import { notFoundHandler } from "./middlewares/not-found.js";
 import { errorHandler } from "./middlewares/error-handler.js";
 
@@ -32,6 +38,9 @@ export function createApp(): Express {
   app.use("/api/users", usersRouter);
   app.use("/api/rutas", routesRouter);
   app.use("/api/recolecciones", collectionsRouter);
+  app.use("/api/empresas", companiesRouter);
+  app.use("/api/notificaciones", notificationsRouter);
+  app.use("/api/reportes", reportsRouter);
 
   // Manejo de rutas no encontradas y errores globales
   app.use(notFoundHandler);

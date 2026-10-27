@@ -1,9 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../app.js";
+import { prisma } from "../../config/prisma.js";
+import { telemetryService } from "../telemetry/telemetry.service.js";
 
 describe("Módulo de Puntos de Reciclaje (Fase 3 - Backend)", () => {
   const app = createApp();
+
+  afterAll(async () => {
+    await prisma.recyclePoint.deleteMany({ where: { code: "#CNT-0099" } });
+    await prisma.recyclePoint.updateMany({
+      where: { code: "#CNT-0001" },
+      data: { currentFillPercentage: 45.0 },
+    });
+    telemetryService.clear();
+  });
 
   describe("GET /api/puntos", () => {
     it("debe retornar la lista de puntos de reciclaje de Tuluá", async () => {
