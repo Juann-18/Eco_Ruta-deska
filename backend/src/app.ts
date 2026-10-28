@@ -11,6 +11,7 @@ import {
   collectionsRouter,
   companiesRouter,
   notificationsRouter,
+  statisticsRouter,
 } from "./modules/routes/routes.router.js";
 import { reportsRouter } from "./modules/reports/reports.router.js";
 import { notFoundHandler } from "./middlewares/not-found.js";
@@ -41,6 +42,7 @@ export function createApp(): Express {
   app.use("/api/empresas", companiesRouter);
   app.use("/api/notificaciones", notificationsRouter);
   app.use("/api/reportes", reportsRouter);
+  app.use("/api/estadisticas", statisticsRouter);
 
   // Manejo de rutas no encontradas y errores globales
   app.use(notFoundHandler);

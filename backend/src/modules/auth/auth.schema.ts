@@ -21,8 +21,9 @@ export type LoginInput = z.infer<typeof loginSchema>;
 
 export const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
+  email: z.string().email("Formato de correo electrónico inválido").optional(),
   phone: z.string().optional(),
-  comuna: z.number().int().min(1).max(6).optional(),
-  avatarUrl: z.string().url().optional(),
+  comuna: z.coerce.number().int().min(1).max(6).optional(),
+  avatarUrl: z.string().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

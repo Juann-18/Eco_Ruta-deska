@@ -11,6 +11,7 @@ authRouter.post("/logout", AuthController.logout);
 
 // Rutas protegidas
 authRouter.get("/me", authenticate, AuthController.getMe);
+authRouter.patch("/profile", authenticate, AuthController.updateProfile);
 
 // Rutas de usuario
 export const usersRouter = Router();

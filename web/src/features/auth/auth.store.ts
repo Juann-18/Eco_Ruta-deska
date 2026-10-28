@@ -23,7 +23,13 @@ interface AuthState {
 
   login: (email: string, password: string) => Promise<boolean>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<boolean>;
-  updateProfile: (data: { name?: string; phone?: string; comuna?: number }) => Promise<boolean>;
+  updateProfile: (data: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    comuna?: number;
+    avatarUrl?: string;
+  }) => Promise<boolean>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
 }

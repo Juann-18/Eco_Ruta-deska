@@ -21,50 +21,56 @@ export function hashPassword(password: string): string {
 async function main() {
   console.log("🌱 Iniciando inserción de datos de desarrollo (Seeding)...");
 
-  // 1. Limpieza ordenada para permitir re-ejecución limpia
-  console.log("🧹 Limpiando datos previos...");
+  // 1. Limpieza ordenada preservando usuarios reales y sus reportes
+  console.log("🧹 Limpiando datos previos de semilla (preservando usuarios registrados)...");
   await prisma.routeIncident.deleteMany({});
   await prisma.collection.deleteMany({});
   await prisma.routeAssignment.deleteMany({});
   await prisma.route.deleteMany({});
-  await prisma.citizenReport.deleteMany({});
+  await prisma.citizenReport.deleteMany({
+    where: {
+      folio: { in: ["#REP-2026-001", "#REP-2026-002", "#REP-2026-003"] },
+    },
+  });
   await prisma.notification.deleteMany({});
   await prisma.recyclePoint.deleteMany({});
   await prisma.vehicle.deleteMany({});
-  await prisma.user.deleteMany({});
+  await prisma.user.deleteMany({
+    where: { email: { startsWith: "maria_" } },
+  });
   await prisma.company.deleteMany({});
 
-  // 2. Empresas operadoras
+  // 2. Empresas operadoras (Fieles a Company.png y Company___Detalle.png)
   console.log("🏢 Creando empresas de aseo y reciclaje...");
-  const ecoAseo = await prisma.company.create({
-    data: {
-      name: "EcoAseo Tuluá",
-      nit: "900.123.456-7",
-      phone: "+57 (602) 224-1100",
-      address: "Zona Industrial Calle 40 # 20-15, Tuluá, Valle",
-      description: "Operador integral de recolección y aprovechamiento de residuos en Comuna 1 y 2.",
-      rating: 4.90,
-      completedRoutes: 342,
-      isVerified: true,
-      status: CompanyStatus.APROBADA,
-      wasteTypes: ["PAPEL_CARTON", "VIDRIO", "PLASTICO", "METAL", "ESCOMBRO", "ORGANICO"],
-      coveredComunas: [1, 2, 3],
-    },
-  });
-
   const tuluaVerde = await prisma.company.create({
     data: {
       name: "Tuluá Verde S.A.S.",
       nit: "901.884.221-3",
       phone: "+57 (602) 225-8833",
       address: "Carrera 26 # 28-10, Tuluá, Valle",
-      description: "Empresa verde orientada a la recolección selectiva de papel, cartón y botellas PET.",
+      description: "Recolección selectiva de vidrio y envases plásticos",
       rating: 4.80,
-      completedRoutes: 215,
+      completedRoutes: 280,
       isVerified: true,
       status: CompanyStatus.APROBADA,
-      wasteTypes: ["PAPEL_CARTON", "PLASTICO"],
-      coveredComunas: [1, 4, 5],
+      wasteTypes: ["VIDRIO", "PLASTICO"],
+      coveredComunas: [1, 2, 3],
+    },
+  });
+
+  const ecoAseo = await prisma.company.create({
+    data: {
+      name: "EcoAseo Tuluá",
+      nit: "900.123.456-7",
+      phone: "+57 (602) 224-1100",
+      address: "Zona Industrial Calle 40 # 20-15, Tuluá, Valle",
+      description: "Aseo urbano y reciclaje",
+      rating: 4.50,
+      completedRoutes: 320,
+      isVerified: true,
+      status: CompanyStatus.APROBADA,
+      wasteTypes: ["PAPEL_CARTON", "ESCOMBRO", "PLASTICO"],
+      coveredComunas: [1, 2, 3, 4, 5, 6],
     },
   });
 
@@ -74,13 +80,29 @@ async function main() {
       nit: "890.987.654-1",
       phone: "+57 (602) 225-4422",
       address: "Av. Roosevelt # 12-40, Tuluá, Valle",
-      description: "Especialistas en reciclaje selectivo de metales pesados, vidrio y escombros.",
-      rating: 4.75,
+      description: "Aprovechamiento industrial de papel, cartón y metales",
+      rating: 4.20,
       completedRoutes: 185,
       isVerified: true,
       status: CompanyStatus.APROBADA,
-      wasteTypes: ["VIDRIO", "METAL", "ESCOMBRO"],
-      coveredComunas: [2, 3, 6],
+      wasteTypes: ["PAPEL_CARTON", "METAL"],
+      coveredComunas: [2, 4],
+    },
+  });
+
+  await prisma.company.create({
+    data: {
+      name: "Veolia",
+      nit: "800.154.992-0",
+      phone: "+57 (602) 226-1000",
+      address: "Calle 27 # 30-18, Tuluá, Valle",
+      description: "Gestión ambiental de residuos plásticos y metálicos",
+      rating: 4.60,
+      completedRoutes: 295,
+      isVerified: true,
+      status: CompanyStatus.APROBADA,
+      wasteTypes: ["PLASTICO", "METAL"],
+      coveredComunas: [1, 2, 3, 4, 5, 6],
     },
   });
 
@@ -116,12 +138,19 @@ async function main() {
     },
   });
 
-  // 4. Usuarios del Sistema
-  console.log("👤 Creando usuarios de prueba...");
+  // 4. Usuarios base del Sistema (Upsert para no borrar usuarios creados ni cambiar sus UUIDs)
+  console.log("👤 Asegurando usuarios base del sistema (upsert)...");
   const defaultPasswordHash = hashPassword("eco123456");
 
-  const userCiudadano = await prisma.user.create({
-    data: {
+  const userCiudadano = await prisma.user.upsert({
+    where: { email: "alex@ecoruta.com" },
+    update: {
+      name: "Alex Ciudadano",
+      phone: "+57 315 224 8899",
+      role: UserRole.CIUDADANO,
+      comuna: 1,
+    },
+    create: {
       email: "alex@ecoruta.com",
       passwordHash: defaultPasswordHash,
       name: "Alex Ciudadano",
@@ -132,8 +161,16 @@ async function main() {
     },
   });
 
-  const userConductor = await prisma.user.create({
-    data: {
+  const userConductor = await prisma.user.upsert({
+    where: { email: "conductor@ecoaseo.com" },
+    update: {
+      name: "Carlos Conductor",
+      phone: "+57 312 998 7744",
+      role: UserRole.RECOLECTOR,
+      comuna: 1,
+      companyId: ecoAseo.id,
+    },
+    create: {
       email: "conductor@ecoaseo.com",
       passwordHash: defaultPasswordHash,
       name: "Carlos Conductor",
@@ -145,8 +182,15 @@ async function main() {
     },
   });
 
-  const userAdmin = await prisma.user.create({
-    data: {
+  await prisma.user.upsert({
+    where: { email: "admin@tulua.gov.co" },
+    update: {
+      name: "Supervisor Municipal Tuluá",
+      phone: "+57 602 224 5500",
+      role: UserRole.ADMIN,
+      comuna: 1,
+    },
+    create: {
       email: "admin@tulua.gov.co",
       passwordHash: defaultPasswordHash,
       name: "Supervisor Municipal Tuluá",

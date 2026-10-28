@@ -29,6 +29,10 @@ export interface CollectionStop {
   recyclePointName: string;
   recyclePointAddress: string;
   comuna: number;
+  latitude?: number;
+  longitude?: number;
+  wasteType?: string;
+  currentFillPercentage?: number;
   order: number;
   status: CollectionStatus;
   collectedWeightKg: number | null;
@@ -44,6 +48,9 @@ export interface VehicleInfo {
   maxCapacityKg: number;
   currentLoadKg: number;
   isActive: boolean;
+  latitude?: number;
+  longitude?: number;
+  speedKmh?: number;
 }
 
 export interface RouteDetail extends RouteItem {

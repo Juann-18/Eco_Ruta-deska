@@ -164,10 +164,121 @@ export class RoutesController {
     }
   }
 
-  public async getCompanies(_req: Request, res: Response, NextFunction: NextFunction) {
+  public async getCompanies(req: Request, res: Response, NextFunction: NextFunction) {
     try {
-      const companies = await routesService.getCompanies();
+      const wasteType = req.query.wasteType ? String(req.query.wasteType) : undefined;
+      const comuna = req.query.comuna ? Number(req.query.comuna) : undefined;
+      const isVerified =
+        req.query.isVerified !== undefined
+          ? req.query.isVerified === "true"
+          : undefined;
+      const search = req.query.search ? String(req.query.search) : undefined;
+
+      const companies = await routesService.getCompanies({
+        wasteType,
+        comuna,
+        isVerified,
+        search,
+      });
       res.json({ data: companies });
+    } catch (err) {
+      NextFunction(err);
+    }
+  }
+
+  public async getCompanyById(req: Request, res: Response, NextFunction: NextFunction) {
+    try {
+      const { id } = req.params;
+      const company = await routesService.getCompanyById(id);
+      if (!company) {
+        res.status(404).json({
+          error: "Empresa no encontrada",
+          code: "COMPANY_NOT_FOUND",
+        });
+        return;
+      }
+      res.json({ success: true, data: company });
+    } catch (err) {
+      NextFunction(err);
+    }
+  }
+
+  public async createCompany(req: Request, res: Response, NextFunction: NextFunction) {
+    try {
+      const { name, nit, phone, wasteTypes, coveredComunas, address, description } = req.body ?? {};
+      if (!name || !nit || !phone) {
+        res.status(400).json({
+          error: "Nombre, NIT y teléfono son obligatorios",
+          code: "VALIDATION_ERROR",
+        });
+        return;
+      }
+      const created = await routesService.createCompany({
+        name: String(name),
+        nit: String(nit),
+        phone: String(phone),
+        wasteTypes: Array.isArray(wasteTypes) && wasteTypes.length > 0 ? wasteTypes : ["PAPEL_CARTON"],
+        coveredComunas: Array.isArray(coveredComunas) && coveredComunas.length > 0 ? coveredComunas.map(Number) : [1],
+        address,
+        description,
+      });
+      res.status(201).json({
+        success: true,
+        message: "Solicitud de registro de empresa enviada correctamente",
+        data: created,
+      });
+    } catch (err) {
+      NextFunction(err);
+    }
+  }
+
+  public async updateCompanyStatus(req: Request, res: Response, NextFunction: NextFunction) {
+    try {
+      const { id } = req.params;
+      const rawStatus = req.body?.status
+        ? String(req.body.status).toUpperCase()
+        : req.body?.isVerified === false
+        ? "RECHAZADA"
+        : "APROBADA";
+
+      if (!["APROBADA", "RECHAZADA", "PENDIENTE"].includes(rawStatus)) {
+        res.status(400).json({
+          error: "Estado de empresa inválido (APROBADA, RECHAZADA, PENDIENTE)",
+          code: "VALIDATION_ERROR",
+        });
+        return;
+      }
+
+      const updated = await routesService.updateCompanyStatus(
+        id,
+        rawStatus as "APROBADA" | "RECHAZADA" | "PENDIENTE"
+      );
+
+      if (!updated) {
+        res.status(404).json({
+          error: "Empresa no encontrada",
+          code: "COMPANY_NOT_FOUND",
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: `Estado de empresa actualizado a ${rawStatus}`,
+        data: updated,
+      });
+    } catch (err) {
+      NextFunction(err);
+    }
+  }
+
+  public async getStatisticsSummary(_req: Request, res: Response, NextFunction: NextFunction) {
+    try {
+      const summary = await routesService.getStatisticsSummary();
+      res.json({
+        success: true,
+        data: summary,
+      });
     } catch (err) {
       NextFunction(err);
     }

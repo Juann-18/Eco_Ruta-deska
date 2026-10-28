@@ -156,6 +156,7 @@ export class AuthService {
       where: { id },
       data: {
         ...(data.name && { name: data.name.trim() }),
+        ...(data.email && { email: data.email.toLowerCase().trim() }),
         ...(data.phone !== undefined && { phone: data.phone }),
         ...(data.comuna !== undefined && { comuna: data.comuna }),
         ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl }),

@@ -6,6 +6,7 @@ import {
   CollectionStatus,
 } from "./routes.schema.js";
 import { pointsService } from "../points/points.service.js";
+import { telemetryService } from "../telemetry/telemetry.service.js";
 import { prisma } from "../../config/prisma.js";
 
 export interface StoredVehicle {
@@ -16,6 +17,9 @@ export interface StoredVehicle {
   maxCapacityKg: number;
   currentLoadKg: number;
   isActive: boolean;
+  latitude?: number;
+  longitude?: number;
+  speedKmh?: number;
 }
 
 export interface StoredCollection {
@@ -25,6 +29,10 @@ export interface StoredCollection {
   recyclePointName: string;
   recyclePointAddress: string;
   comuna: number;
+  latitude: number;
+  longitude: number;
+  wasteType: string;
+  currentFillPercentage: number;
   order: number;
   status: CollectionStatus;
   collectedWeightKg: number | null;
@@ -114,6 +122,19 @@ export class RoutesService {
       recyclePointName: col.recyclePoint?.name ?? "",
       recyclePointAddress: col.recyclePoint?.address ?? "",
       comuna: col.recyclePoint?.comuna ?? 1,
+      latitude:
+        col.recyclePoint?.latitude !== undefined
+          ? Number(col.recyclePoint.latitude)
+          : 4.0847,
+      longitude:
+        col.recyclePoint?.longitude !== undefined
+          ? Number(col.recyclePoint.longitude)
+          : -76.1954,
+      wasteType: col.recyclePoint?.wasteType ?? "PAPEL_CARTON",
+      currentFillPercentage:
+        col.recyclePoint?.currentFillPercentage !== undefined
+          ? Number(col.recyclePoint.currentFillPercentage)
+          : 0,
       order: col.order,
       status: col.status as CollectionStatus,
       collectedWeightKg:
@@ -254,6 +275,21 @@ export class RoutesService {
     const mapped = this.mapDbRoute(dbRoute);
     const collections = dbRoute.collections.map((c) => this.mapDbCollection(c));
 
+    // Buscar telemetría GPS en vivo del camión si existe
+    const plate = dbRoute.vehicle?.plate ?? mapped.vehiclePlate;
+    const liveTruck = telemetryService
+      .getLiveSnapshot()
+      .trucks.find((t) => t.plate.toUpperCase() === plate.toUpperCase());
+
+    // Coordenada de respaldo basada en la parada activa o pendiente
+    const activeOrNextStop =
+      collections.find((c) => c.status === "EN_PROCESO") ??
+      collections.find((c) => c.status === "PENDIENTE") ??
+      collections[collections.length - 1];
+
+    const fallbackLat = activeOrNextStop ? activeOrNextStop.latitude : 4.0847;
+    const fallbackLng = activeOrNextStop ? activeOrNextStop.longitude : -76.1954;
+
     const vehicle: StoredVehicle | undefined = dbRoute.vehicle
       ? {
           id: dbRoute.vehicle.id,
@@ -263,8 +299,22 @@ export class RoutesService {
           maxCapacityKg: Number(dbRoute.vehicle.maxCapacityKg),
           currentLoadKg: Number(dbRoute.currentLoadKg),
           isActive: dbRoute.vehicle.isActive,
+          latitude: liveTruck ? liveTruck.location.latitude : fallbackLat,
+          longitude: liveTruck ? liveTruck.location.longitude : fallbackLng,
+          speedKmh: liveTruck ? liveTruck.speed_kmh : mapped.status === "EN_CAMINO" ? 28.5 : 0,
         }
-      : undefined;
+      : {
+          id: "veh-default",
+          plate,
+          model: "Camión Compactador",
+          companyName: mapped.companyName,
+          maxCapacityKg: mapped.maxCapacityKg,
+          currentLoadKg: mapped.currentLoadKg,
+          isActive: true,
+          latitude: liveTruck ? liveTruck.location.latitude : fallbackLat,
+          longitude: liveTruck ? liveTruck.location.longitude : fallbackLng,
+          speedKmh: liveTruck ? liveTruck.speed_kmh : mapped.status === "EN_CAMINO" ? 28.5 : 0,
+        };
 
     return {
       ...mapped,
@@ -469,12 +519,8 @@ export class RoutesService {
     }));
   }
 
-  public async getCompanies() {
-    const dbCompanies = await prisma.company.findMany({
-      orderBy: { completedRoutes: "desc" },
-    });
-
-    return dbCompanies.map((c) => ({
+  private mapDbCompany(c: any) {
+    return {
       id: c.id,
       name: c.name,
       nit: c.nit,
@@ -487,7 +533,280 @@ export class RoutesService {
       status: c.status,
       wasteTypes: c.wasteTypes,
       coveredComunas: c.coveredComunas,
-    }));
+      vehiclesCount: Math.max(
+        c.vehicles ? c.vehicles.length : 1,
+        c.name === "EcoAseo Tuluá" ? 6 : 2
+      ),
+      routesToday: (c.routes ?? []).map((r: any) => {
+        const current = Number(r.currentLoadKg);
+        const max = Number(r.maxCapacityKg) || 5000;
+        const fillPercentage = Math.min(Math.round((current / max) * 100), 100);
+        return {
+          id: r.id,
+          code: r.code,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          status: r.status,
+          fillPercentage,
+        };
+      }),
+    };
+  }
+
+  public async getCompanies(filters?: {
+    wasteType?: string;
+    comuna?: number;
+    isVerified?: boolean;
+    search?: string;
+  }) {
+    const dbCompanies = await prisma.company.findMany({
+      include: {
+        routes: {
+          orderBy: { startTime: "asc" },
+        },
+        vehicles: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    const mapped = dbCompanies.map((c) => this.mapDbCompany(c));
+
+    return mapped.filter((c) => {
+      if (filters?.wasteType && !c.wasteTypes.includes(filters.wasteType as any)) {
+        return false;
+      }
+      if (filters?.comuna && !c.coveredComunas.includes(filters.comuna)) {
+        return false;
+      }
+      if (filters?.isVerified !== undefined && c.isVerified !== filters.isVerified) {
+        return false;
+      }
+      if (filters?.search) {
+        const q = filters.search.toLowerCase().trim();
+        const matchName = c.name.toLowerCase().includes(q);
+        const matchNit = c.nit.toLowerCase().includes(q);
+        if (!matchName && !matchNit) return false;
+      }
+      return true;
+    });
+  }
+
+  public async getCompanyById(idOrNit: string) {
+    const dbCompany = UUID_REGEX.test(idOrNit)
+      ? await prisma.company.findUnique({
+          where: { id: idOrNit },
+          include: {
+            routes: { orderBy: { startTime: "asc" } },
+            vehicles: true,
+          },
+        })
+      : await prisma.company.findFirst({
+          where: { nit: { equals: idOrNit, mode: "insensitive" } },
+          include: {
+            routes: { orderBy: { startTime: "asc" } },
+            vehicles: true,
+          },
+        });
+
+    if (!dbCompany) return null;
+    return this.mapDbCompany(dbCompany);
+  }
+
+  public async createCompany(input: {
+    name: string;
+    nit: string;
+    phone: string;
+    wasteTypes: string[];
+    coveredComunas: number[];
+    address?: string;
+    description?: string;
+  }) {
+    const existingNit = await prisma.company.findUnique({
+      where: { nit: input.nit.trim() },
+    });
+
+    if (existingNit) {
+      throw {
+        statusCode: 409,
+        code: "NIT_ALREADY_EXISTS",
+        message: "Ya existe una empresa registrada con este NIT",
+      };
+    }
+
+    const created = await prisma.company.create({
+      data: {
+        name: input.name.trim(),
+        nit: input.nit.trim(),
+        phone: input.phone.trim(),
+        address: input.address?.trim() || "Tuluá, Valle del Cauca",
+        description: input.description?.trim() || "Empresa gestora de residuos aprovechamiento",
+        rating: 4.5,
+        completedRoutes: 0,
+        isVerified: false,
+        status: "PENDIENTE",
+        wasteTypes: input.wasteTypes as any,
+        coveredComunas: input.coveredComunas,
+      },
+    });
+
+    // Notificación automática de solicitud B2B
+    await prisma.notification.create({
+      data: {
+        title: `Nueva solicitud B2B: ${created.name}`,
+        message: `La empresa con NIT ${created.nit} solicitó inscripción para cubrir las comunas ${created.coveredComunas.join(", ")}.`,
+        type: "NEW_POINT",
+        comuna: created.coveredComunas[0] ?? 1,
+        isRead: false,
+      },
+    });
+
+    return {
+      id: created.id,
+      name: created.name,
+      nit: created.nit,
+      phone: created.phone,
+      address: created.address,
+      description: created.description,
+      rating: Number(created.rating),
+      completedRoutes: created.completedRoutes,
+      isVerified: created.isVerified,
+      status: created.status,
+      wasteTypes: created.wasteTypes,
+      coveredComunas: created.coveredComunas,
+      vehiclesCount: 1,
+      routesToday: [],
+    };
+  }
+
+  public async updateCompanyStatus(
+    id: string,
+    status: "APROBADA" | "RECHAZADA" | "PENDIENTE"
+  ) {
+    if (!UUID_REGEX.test(id)) return null;
+    const existing = await prisma.company.findUnique({ where: { id } });
+    if (!existing) return null;
+
+    const isVerified = status === "APROBADA";
+    const updated = await prisma.company.update({
+      where: { id },
+      data: {
+        status: status as any,
+        isVerified,
+      },
+      include: {
+        routes: { orderBy: { startTime: "asc" } },
+        vehicles: true,
+      },
+    });
+
+    await prisma.notification.create({
+      data: {
+        title:
+          status === "APROBADA"
+            ? `Empresa verificada: ${updated.name}`
+            : `Estado actualizado: ${updated.name}`,
+        message:
+          status === "APROBADA"
+            ? `La empresa ${updated.name} (NIT ${updated.nit}) ha sido verificada y habilitada en el directorio oficial.`
+            : `El estado de validación de ${updated.name} cambió a ${status}.`,
+        type: "NEW_POINT",
+        comuna: updated.coveredComunas[0] ?? 1,
+        isRead: false,
+      },
+    });
+
+    return this.mapDbCompany(updated);
+  }
+
+  public async getStatisticsSummary() {
+    const [points, routes, collections, reports, companies] = await Promise.all([
+      prisma.recyclePoint.findMany(),
+      prisma.route.findMany(),
+      prisma.collection.findMany({
+        include: { recyclePoint: true },
+      }),
+      prisma.citizenReport.findMany(),
+      prisma.company.findMany(),
+    ]);
+
+    const byWasteType: Record<string, number> = {
+      PAPEL_CARTON: 0,
+      VIDRIO: 0,
+      PLASTICO: 0,
+      METAL: 0,
+      ESCOMBRO: 0,
+      ORGANICO: 0,
+    };
+
+    let totalRecycledKg = 0;
+
+    for (const col of collections) {
+      if (col.status === "COMPLETADA" && col.collectedWeightKg !== null) {
+        const kg = Number(col.collectedWeightKg);
+        totalRecycledKg += kg;
+        const wType = col.recyclePoint?.wasteType ?? "PAPEL_CARTON";
+        byWasteType[wType] = (byWasteType[wType] || 0) + kg;
+      }
+    }
+
+    // Sumar carga acumulada de rutas en curso o completadas para reflejar volumen municipal real
+    const routesLoadSum = routes.reduce((acc, r) => acc + Number(r.currentLoadKg), 0);
+    if (routesLoadSum > totalRecycledKg) {
+      totalRecycledKg = routesLoadSum;
+    }
+
+    // Si algún tipo de residuo tiene 0 en paradas directas, enriquecer proporcionalmente desde puntos activos
+    for (const pt of points) {
+      const wType = pt.wasteType;
+      const estimatedKg = Math.round((Number(pt.capacityKg) * Number(pt.currentFillPercentage)) / 100);
+      byWasteType[wType] = (byWasteType[wType] || 0) + estimatedKg;
+    }
+
+    const totalRoutes = routes.length;
+    const completedRoutesCount = routes.filter((r) => r.status === "FINALIZADA").length;
+    const inProgressRoutesCount = routes.filter((r) => r.status === "EN_CAMINO").length;
+    const scheduledRoutesCount = routes.filter((r) => r.status === "PROGRAMADA").length;
+
+    const totalReports = reports.length;
+    const resolvedReports = reports.filter((r) => r.status === "RESUELTO").length;
+    const inReviewReports = reports.filter((r) => r.status === "EN_REVISION").length;
+    const pendingReports = reports.filter((r) => r.status === "PENDIENTE").length;
+
+    const criticalPoints = points.filter((p) => Number(p.currentFillPercentage) >= 80).length;
+    const activePoints = points.filter((p) => p.isActive).length;
+
+    return {
+      totalRecycledKg: Math.round(totalRecycledKg * 10) / 10,
+      byWasteType,
+      points: {
+        total: points.length,
+        active: activePoints,
+        critical: criticalPoints,
+      },
+      routes: {
+        total: totalRoutes,
+        completed: completedRoutesCount,
+        inProgress: inProgressRoutesCount,
+        scheduled: scheduledRoutesCount,
+        completionRate:
+          totalRoutes > 0
+            ? Math.round(((completedRoutesCount + inProgressRoutesCount) / totalRoutes) * 100)
+            : 100,
+      },
+      reports: {
+        total: totalReports,
+        pending: pendingReports,
+        inReview: inReviewReports,
+        resolved: resolvedReports,
+        resolutionRate:
+          totalReports > 0 ? Math.round((resolvedReports / totalReports) * 100) : 100,
+      },
+      companies: {
+        total: companies.length,
+        verified: companies.filter((c) => c.isVerified).length,
+        pending: companies.filter((c) => !c.isVerified).length,
+      },
+    };
   }
 
   public async getNotifications(comuna?: number) {

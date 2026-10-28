@@ -100,6 +100,7 @@ export default function App() {
           {activeTab === "profile" && (
             <ProfileView
               selectedComuna={selectedComuna}
+              onSelectComuna={setSelectedComuna}
               onOpenLocationModal={() => {
                 // Selector de comuna integrado en el perfil y shell
               }}
